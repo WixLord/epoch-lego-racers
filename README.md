@@ -18,7 +18,7 @@ Required Microsoft Visual C++ x86 runtime DLLs are included app-locally.
 Windows, Visual Studio 2022 C++ tools, and CMake 3.25+:
 
 ```powershell
-cmake -S Source/racers -B Build/racers -G "Visual Studio 17 2022" -A Win32 -DRACERS_DECOMP_ASSERT=OFF
+cmake -S Source/racers -B Build/racers -G "Visual Studio 17 2022" -A Win32 -DRACERS_DECOMP_ASSERT=OFF -DCMAKE_EXE_LINKER_FLAGS=/SAFESEH:NO -DCMAKE_SHARED_LINKER_FLAGS=/SAFESEH:NO
 cmake --build Build/racers --config Release
 cmake -S Source/Renderer -B Build/renderer -G "Visual Studio 17 2022" -A Win32
 cmake --build Build/renderer --config Release --target RebornRenderer
