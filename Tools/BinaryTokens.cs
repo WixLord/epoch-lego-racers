@@ -1,0 +1,10 @@
+using System;using System.IO;using System.Collections.Generic;
+public class BinaryToken {public int Type; public object Value;public BinaryToken(int t,object v=null){Type=t;Value=v;}}
+public static class BinaryTokens {
+ public static List<BinaryToken> Read(string path){var result=new List<BinaryToken>();var sequences=new Dictionary<int,int[]>();var pending=new Queue<int>();using(var r=new BinaryReader(File.OpenRead(path))){while(r.BaseStream.Position<r.BaseStream.Length || pending.Count>0){int t=pending.Count>0?pending.Dequeue():r.ReadByte();
+ if(t==0x16){int id=r.ReadByte(),n=r.ReadByte();var seq=new int[n];for(int i=0;i<n;i++){seq[i]=r.ReadByte();if(seq[i]==0x13)seq[i]=r.ReadUInt16();}sequences[id]=seq;continue;}
+ if(t==0x14){int n=r.ReadUInt16();int id=r.ReadByte();if(id==0x13)id=r.ReadUInt16();int[] seq=id==0x15?new int[]{7,4,8,8}:sequences.ContainsKey(id)?sequences[id]:new int[]{id};for(int i=0;i<n;i++)foreach(int q in seq)pending.Enqueue(q);continue;}
+ if(t==0x15 || (t>=0x17 && t<=0x26)){foreach(int q in t==0x15?new int[]{7,4,8,8}:sequences[t])pending.Enqueue(q);continue;}
+ object value=null;switch(t){case 2:var chars=new List<byte>();byte c;while((c=r.ReadByte())!=0)chars.Add(c);value=System.Text.Encoding.ASCII.GetString(chars.ToArray());break;case 3:value=r.ReadSingle();break;case 4:value=r.ReadInt32();break;case 11:case 12:value=(int)r.ReadByte();t=4;break;case 13:value=(int)r.ReadInt16();t=4;break;case 14:value=(int)r.ReadUInt16();t=4;break;case 15:value=r.ReadInt16()/4096f;t=3;break;case 16:value=r.ReadInt16()/32f;t=3;break;case 17:value=(float)r.ReadInt16();t=3;break;case 18:value=r.ReadByte()/127f;t=3;break;case 19:t=r.ReadUInt16();break;}result.Add(new BinaryToken(t,value));}}return result;}
+ public static void Write(string path,IEnumerable<BinaryToken> tokens){using(var w=new BinaryWriter(File.Create(path)))foreach(var t in tokens){if(t.Type>255){w.Write((byte)19);w.Write((ushort)t.Type);}else w.Write((byte)t.Type);if(t.Type==2){w.Write(System.Text.Encoding.ASCII.GetBytes((string)t.Value));w.Write((byte)0);}else if(t.Type==3)w.Write(Convert.ToSingle(t.Value));else if(t.Type==4)w.Write(Convert.ToInt32(t.Value));}}
+}

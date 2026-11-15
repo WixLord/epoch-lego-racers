@@ -1,0 +1,36 @@
+{
+  "version": "v0.1.0",
+  "sha256": "d13af64fcddcfbce2fed1f96ca8d0a6700ed96b2aa691cb3c60f788a3f90f044",
+  "size": 1533468,
+  "baseArchiveSha256": "5eadf314868d67732866b474796dbfd1666c595cce1e131d2b850014cd7025c1",
+  "outputArchiveSha256": "2513ec714f34d3880dec62a930bf78a5226f330fde57e5d77408883db3110897",
+  "bytesCopiedFromUserArchive": 19236008,
+  "deltaLiteralBytes": 4244740,
+  "includedFiles": [
+    "NOTICE.txt",
+    "licenses/COPYING-GPL-3.0.txt",
+    "licenses/Microsoft-runtime.txt",
+    "licenses/racers-LGPL-3.0.txt",
+    "manifest.json",
+    "patches/LEGO.JAM.rmp",
+    "payload/GolDP.dll",
+    "payload/RacersReborn.exe",
+    "payload/Reborn.ini",
+    "payload/RebornRenderer.dll",
+    "payload/msvcp140.dll",
+    "payload/vcruntime140.dll"
+  ],
+  "excluded": [
+    "Original game executables",
+    "LEGO.JAM",
+    "*.tun",
+    "Save/",
+    "Fonts/",
+    "RemasterLogo.tga",
+    "D3DImm.dll",
+    "DDraw.dll",
+    "logs",
+    "credentials"
+  ],
+  "publicReleaseReady": false
+}

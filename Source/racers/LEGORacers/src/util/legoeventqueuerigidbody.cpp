@@ -1,0 +1,568 @@
+#include "golorientedentity.h"
+#include "util/legoeventqueue.h"
+
+#include <float.h>
+#include <math.h>
+
+DECOMP_SIZE_ASSERT(LegoEventQueue::Descriptor::RigidBody, 0xe4)
+
+inline LegoFloat DotContactVectors(const GolVec3& p_left, const GolVec3& p_right)
+{
+	LegoFloat result = p_left.m_y;
+	LegoFloat y = p_right.m_y;
+	result *= y;
+	LegoFloat z = p_right.m_z;
+	LegoFloat leftZ = p_left.m_z;
+	z *= leftZ;
+	result += z;
+	result += p_right.m_x * p_left.m_x;
+	return result;
+}
+
+// FUNCTION: LEGORACERS 0x00441330
+LegoBool32 LegoEventQueue::Descriptor::RigidBody::CalculateBoxContact(
+	RigidBody* p_other,
+	LegoFloat* p_penetration,
+	GolVec3* p_normal,
+	GolVec3* p_contactPoint
+)
+{
+	LegoFloat distance0;
+	LegoFloat distance1;
+	if (!TestBoxOverlap(p_other, p_penetration, p_normal, &distance0, &distance1)) {
+		return FALSE;
+	}
+
+	LegoS32 contactCount = 0;
+	LegoU32 shapeIndex = 0;
+	p_contactPoint->m_x = 0.0f;
+	p_contactPoint->m_y = 0.0f;
+	p_contactPoint->m_z = 0.0f;
+
+	for (; shapeIndex < 2; shapeIndex++) {
+		LegoU32 cornerIndex = 0;
+		const GolVec3* position;
+		LegoFloat distance;
+		GolVec3 axisX;
+		GolVec3 axisY;
+		GolVec3 axisZ;
+		if (!shapeIndex) {
+			axisX.m_x = m_body->m_orientation.m_m[0][0];
+			LegoFloat halfX = m_boxSizeX * 0.5f;
+			axisX.m_y = m_body->m_orientation.m_m[0][1];
+			axisX.m_z = m_body->m_orientation.m_m[0][2];
+			axisX.m_x *= halfX;
+			axisX.m_y *= halfX;
+			axisX.m_z *= halfX;
+
+			axisY.m_x = m_body->m_orientation.m_m[1][0];
+			LegoFloat halfY = m_boxSizeY * 0.5f;
+			axisY.m_y = m_body->m_orientation.m_m[1][1];
+			axisY.m_z = m_body->m_orientation.m_m[1][2];
+			axisY.m_x *= halfY;
+			axisY.m_y *= halfY;
+			axisY.m_z *= halfY;
+
+			axisZ.m_x = m_body->m_orientation.m_m[2][0];
+			axisZ.m_y = m_body->m_orientation.m_m[2][1];
+			axisZ.m_z = m_body->m_orientation.m_m[2][2];
+			axisZ *= m_boxSizeZ * 0.5f;
+
+			if (m_boxScale != 1.0f) {
+				if (m_boxScale == 0.0f) {
+					return FALSE;
+				}
+
+				axisX *= m_boxScale;
+				axisY *= m_boxScale;
+				axisZ *= m_boxScale;
+			}
+
+			position = &m_centerOfMassWorld;
+			distance = distance0;
+		}
+		else {
+			axisX.m_x = p_other->m_body->m_orientation.m_m[0][0];
+			axisX.m_y = p_other->m_body->m_orientation.m_m[0][1];
+			axisX.m_z = p_other->m_body->m_orientation.m_m[0][2];
+			LegoFloat halfX = p_other->m_boxSizeX * 0.5f;
+			axisX.m_x *= halfX;
+			axisX.m_y *= halfX;
+			axisX.m_z *= halfX;
+
+			axisY.m_x = p_other->m_body->m_orientation.m_m[1][0];
+			axisY.m_y = p_other->m_body->m_orientation.m_m[1][1];
+			axisY.m_z = p_other->m_body->m_orientation.m_m[1][2];
+			LegoFloat halfY = p_other->m_boxSizeY * 0.5f;
+			axisY.m_x *= halfY;
+			axisY.m_y *= halfY;
+			axisY.m_z *= halfY;
+
+			axisZ.m_x = p_other->m_body->m_orientation.m_m[2][0];
+			axisZ.m_y = p_other->m_body->m_orientation.m_m[2][1];
+			axisZ.m_z = p_other->m_body->m_orientation.m_m[2][2];
+			axisZ *= p_other->m_boxSizeZ * 0.5f;
+
+			if (p_other->m_boxScale != 1.0f) {
+				if (p_other->m_boxScale == 0.0f) {
+					return FALSE;
+				}
+
+				axisX *= p_other->m_boxScale;
+				axisY *= p_other->m_boxScale;
+				axisZ *= p_other->m_boxScale;
+			}
+
+			position = &p_other->m_centerOfMassWorld;
+			distance = distance1;
+		}
+
+		do {
+			GolVec3 corner;
+			if (cornerIndex >= 4) {
+				corner.m_x = -axisX.m_x;
+				corner.m_y = -axisX.m_y;
+				corner.m_z = -axisX.m_z;
+			}
+			else {
+				corner.m_x = axisX.m_x;
+				corner.m_y = axisX.m_y;
+				corner.m_z = axisX.m_z;
+			}
+
+			if (cornerIndex >= 2 && (cornerIndex < 4 || cornerIndex >= 6)) {
+				corner.m_x -= axisY.m_x;
+				corner.m_y -= axisY.m_y;
+				corner.m_z -= axisY.m_z;
+			}
+			else {
+				corner.m_x += axisY.m_x;
+				corner.m_y += axisY.m_y;
+				corner.m_z += axisY.m_z;
+			}
+
+			if (!cornerIndex || cornerIndex == 2 || cornerIndex == 4 || cornerIndex == 6) {
+				corner.m_x += axisZ.m_x;
+				corner.m_y += axisZ.m_y;
+				corner.m_z += axisZ.m_z;
+			}
+			else {
+				corner.m_x -= axisZ.m_x;
+				corner.m_y -= axisZ.m_y;
+				corner.m_z -= axisZ.m_z;
+			}
+
+			LegoFloat projected = DotContactVectors(*p_normal, corner);
+			if (shapeIndex == 1) {
+				projected = -projected;
+			}
+
+			if (projected >= distance) {
+				contactCount++;
+				p_contactPoint->m_x = position->m_x + p_contactPoint->m_x + corner.m_x;
+				p_contactPoint->m_y = position->m_y + p_contactPoint->m_y + corner.m_y;
+				p_contactPoint->m_z = corner.m_z + position->m_z + p_contactPoint->m_z;
+			}
+			cornerIndex++;
+		} while (cornerIndex < 8);
+	}
+
+	LegoFloat count = static_cast<LegoFloat>(contactCount);
+	p_contactPoint->m_x = p_contactPoint->m_x / count;
+	p_contactPoint->m_y = p_contactPoint->m_y / count;
+	p_contactPoint->m_z = p_contactPoint->m_z / count;
+	return TRUE;
+}
+
+// FUNCTION: LEGORACERS 0x00441790
+LegoBool32 LegoEventQueue::Descriptor::RigidBody::TestBoxOverlap(
+	RigidBody* p_other,
+	LegoFloat* p_penetration,
+	GolVec3* p_normal,
+	LegoFloat* p_distance0,
+	LegoFloat* p_distance1
+)
+{
+	LegoS32 bestAxis = -1;
+	LegoFloat overlap;
+	LegoFloat projection;
+	LegoFloat half1z;
+	LegoFloat half0y;
+	LegoFloat half0z;
+	LegoFloat half1x;
+	LegoFloat half0x;
+	LegoFloat half1y;
+	GolVec3 delta;
+	GolVec3 thisRow2;
+	GolVec3 thisRow0;
+	GolVec3 otherRow2;
+	GolVec3 otherRow0;
+	GolVec3 thisRow1;
+	GolVec3 otherRow1;
+	GolMatrix3 absOrientation;
+	GolMatrix3 relativeOrientation;
+	GolMatrix3 orientation0;
+
+	m_body->CopyOrientation(&orientation0);
+	p_other->m_body->CopyOrientation(&absOrientation);
+
+	GolMath::TransformVector(p_other->m_centerOfMassWorld - m_centerOfMassWorld, &orientation0.m_m[0][0], &delta);
+
+	GolMath::MultiplyMatrixByTranspose(
+		&absOrientation.m_m[0][0],
+		&orientation0.m_m[0][0],
+		&relativeOrientation.m_m[0][0]
+	);
+
+	half0x = m_boxSizeX * 0.5f;
+	half0y = m_boxSizeY * 0.5f;
+	half0z = m_boxSizeZ * 0.5f;
+	if (m_boxScale != 1.0f) {
+		if (m_boxScale == 0.0f) {
+			return FALSE;
+		}
+
+		half0x = m_boxScale * half0x;
+		half0y = m_boxScale * half0y;
+		half0z = m_boxScale * half0z;
+	}
+
+	half1x = p_other->m_boxSizeX * 0.5f;
+	half1y = p_other->m_boxSizeY * 0.5f;
+	half1z = p_other->m_boxSizeZ * 0.5f;
+	if (p_other->m_boxScale != 1.0f) {
+		if (p_other->m_boxScale == 0.0f) {
+			return FALSE;
+		}
+
+		half1x = p_other->m_boxScale * half1x;
+		half1y = p_other->m_boxScale * half1y;
+		half1z = p_other->m_boxScale * half1z;
+	}
+
+	absOrientation.m_m[0][0] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[0][0]));
+	absOrientation.m_m[0][1] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[0][1]));
+	absOrientation.m_m[0][2] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[0][2]));
+	absOrientation.m_m[1][0] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[1][0]));
+	absOrientation.m_m[1][1] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[1][1]));
+	absOrientation.m_m[1][2] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[1][2]));
+	absOrientation.m_m[2][0] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[2][0]));
+	absOrientation.m_m[2][1] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[2][1]));
+	absOrientation.m_m[2][2] = static_cast<LegoFloat>(fabs(relativeOrientation.m_m[2][2]));
+
+	*p_penetration = FLT_MAX;
+	p_normal->Clear();
+
+	LegoFloat distance = static_cast<LegoFloat>(fabs(delta.m_x));
+	projection =
+		absOrientation.m_m[2][0] * half1z + absOrientation.m_m[1][0] * half1y + absOrientation.m_m[0][0] * half1x;
+	LegoFloat total = projection + half0x;
+	if (distance > total) {
+		return FALSE;
+	}
+	overlap = total - distance;
+	if (overlap < *p_penetration) {
+		bestAxis = 0;
+		*p_penetration = overlap;
+		if (p_distance0) {
+			*p_distance0 = half0x - overlap;
+		}
+		if (p_distance1) {
+			*p_distance1 = projection - *p_penetration;
+		}
+	}
+
+	distance = static_cast<LegoFloat>(fabs(
+		delta.m_z * relativeOrientation.m_m[0][2] + delta.m_y * relativeOrientation.m_m[0][1] +
+		delta.m_x * relativeOrientation.m_m[0][0]
+	));
+	projection =
+		absOrientation.m_m[0][2] * half0z + absOrientation.m_m[0][1] * half0y + absOrientation.m_m[0][0] * half0x;
+	total = projection + half1x;
+	if (distance > total) {
+		return FALSE;
+	}
+	overlap = total - distance;
+	if (overlap < *p_penetration) {
+		bestAxis = 1;
+		*p_penetration = overlap;
+		if (p_distance0) {
+			*p_distance0 = half1x - overlap;
+		}
+		if (p_distance1) {
+			*p_distance1 = projection - *p_penetration;
+		}
+	}
+
+	distance = static_cast<LegoFloat>(fabs(delta.m_y));
+	projection =
+		absOrientation.m_m[2][1] * half1z + absOrientation.m_m[1][1] * half1y + absOrientation.m_m[0][1] * half1x;
+	total = projection + half0y;
+	if (distance > total) {
+		return FALSE;
+	}
+	overlap = total - distance;
+	if (overlap < *p_penetration) {
+		bestAxis = 2;
+		*p_penetration = overlap;
+		if (p_distance0) {
+			*p_distance0 = half0y - overlap;
+		}
+		if (p_distance1) {
+			*p_distance1 = projection - *p_penetration;
+		}
+	}
+
+	distance = static_cast<LegoFloat>(fabs(delta.m_z));
+	projection =
+		absOrientation.m_m[2][2] * half1z + absOrientation.m_m[1][2] * half1y + absOrientation.m_m[0][2] * half1x;
+	total = projection + half0z;
+	if (distance > total) {
+		return FALSE;
+	}
+	overlap = total - distance;
+	if (overlap < *p_penetration) {
+		bestAxis = 3;
+		*p_penetration = overlap;
+		if (p_distance0) {
+			*p_distance0 = half0z - overlap;
+		}
+		if (p_distance1) {
+			*p_distance1 = projection - *p_penetration;
+		}
+	}
+
+	distance = static_cast<LegoFloat>(fabs(
+		delta.m_z * relativeOrientation.m_m[1][2] + delta.m_y * relativeOrientation.m_m[1][1] +
+		delta.m_x * relativeOrientation.m_m[1][0]
+	));
+	projection =
+		absOrientation.m_m[1][2] * half0z + absOrientation.m_m[1][1] * half0y + absOrientation.m_m[1][0] * half0x;
+	total = projection + half1y;
+	if (distance > total) {
+		return FALSE;
+	}
+	overlap = total - distance;
+	if (overlap < *p_penetration) {
+		bestAxis = 4;
+		*p_penetration = overlap;
+		if (p_distance0) {
+			*p_distance0 = half1y - overlap;
+		}
+		if (p_distance1) {
+			*p_distance1 = projection - *p_penetration;
+		}
+	}
+
+	distance = static_cast<LegoFloat>(fabs(
+		delta.m_z * relativeOrientation.m_m[2][2] + delta.m_y * relativeOrientation.m_m[2][1] +
+		delta.m_x * relativeOrientation.m_m[2][0]
+	));
+	projection =
+		absOrientation.m_m[2][2] * half0z + absOrientation.m_m[2][1] * half0y + absOrientation.m_m[2][0] * half0x;
+	total = projection + half1z;
+	if (distance > total) {
+		return FALSE;
+	}
+	overlap = total - distance;
+	if (overlap < *p_penetration) {
+		bestAxis = 5;
+		*p_penetration = overlap;
+		if (p_distance0) {
+			*p_distance0 = half1z - overlap;
+		}
+		if (p_distance1) {
+			*p_distance1 = projection - *p_penetration;
+		}
+	}
+
+	total = (absOrientation.m_m[2][0] * half1y + absOrientation.m_m[1][0] * half1z) +
+			(absOrientation.m_m[0][2] * half0y + absOrientation.m_m[0][1] * half0z);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_z * relativeOrientation.m_m[0][1] - delta.m_y * relativeOrientation.m_m[0][2])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][0] * half1x + absOrientation.m_m[0][0] * half1z) +
+			(absOrientation.m_m[1][2] * half0y + absOrientation.m_m[1][1] * half0z);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_z * relativeOrientation.m_m[1][1] - delta.m_y * relativeOrientation.m_m[1][2])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][2] * half0y + absOrientation.m_m[2][1] * half0z) +
+			(absOrientation.m_m[1][0] * half1x + absOrientation.m_m[0][0] * half1y);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_z * relativeOrientation.m_m[2][1] - delta.m_y * relativeOrientation.m_m[2][2])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][1] * half1y + absOrientation.m_m[1][1] * half1z) +
+			(absOrientation.m_m[0][2] * half0x + absOrientation.m_m[0][0] * half0z);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_x * relativeOrientation.m_m[0][2] - delta.m_z * relativeOrientation.m_m[0][0])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][1] * half1x + absOrientation.m_m[0][1] * half1z) +
+			(absOrientation.m_m[1][2] * half0x + absOrientation.m_m[1][0] * half0z);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_x * relativeOrientation.m_m[1][2] - delta.m_z * relativeOrientation.m_m[1][0])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][2] * half0x + absOrientation.m_m[2][0] * half0z) +
+			(absOrientation.m_m[1][1] * half1x + absOrientation.m_m[0][1] * half1y);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_x * relativeOrientation.m_m[2][2] - delta.m_z * relativeOrientation.m_m[2][0])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][2] * half1y + absOrientation.m_m[1][2] * half1z) +
+			(absOrientation.m_m[0][1] * half0x + absOrientation.m_m[0][0] * half0y);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_y * relativeOrientation.m_m[0][0] - delta.m_x * relativeOrientation.m_m[0][1])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][2] * half1x + absOrientation.m_m[0][2] * half1z) +
+			(absOrientation.m_m[1][1] * half0x + absOrientation.m_m[1][0] * half0y);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_y * relativeOrientation.m_m[1][0] - delta.m_x * relativeOrientation.m_m[1][1])
+		) > total) {
+		return FALSE;
+	}
+
+	total = (absOrientation.m_m[2][1] * half0x + absOrientation.m_m[2][0] * half0y) +
+			(absOrientation.m_m[1][2] * half1x + absOrientation.m_m[0][2] * half1y);
+	if ((total >= 0.001f || total <= -0.001f) &&
+		static_cast<LegoFloat>(
+			fabs(delta.m_y * relativeOrientation.m_m[2][0] - delta.m_x * relativeOrientation.m_m[2][1])
+		) > total) {
+		return FALSE;
+	}
+
+	thisRow0.m_x = m_body->m_orientation.m_m[0][0];
+	thisRow0.m_y = m_body->m_orientation.m_m[0][1];
+	thisRow0.m_z = m_body->m_orientation.m_m[0][2];
+	thisRow1.m_x = m_body->m_orientation.m_m[1][0];
+	thisRow1.m_y = m_body->m_orientation.m_m[1][1];
+	thisRow1.m_z = m_body->m_orientation.m_m[1][2];
+	thisRow2.m_x = m_body->m_orientation.m_m[2][0];
+	thisRow2.m_y = m_body->m_orientation.m_m[2][1];
+	thisRow2.m_z = m_body->m_orientation.m_m[2][2];
+
+	otherRow0.m_x = p_other->m_body->m_orientation.m_m[0][0];
+	otherRow0.m_y = p_other->m_body->m_orientation.m_m[0][1];
+	otherRow0.m_z = p_other->m_body->m_orientation.m_m[0][2];
+	otherRow1.m_x = p_other->m_body->m_orientation.m_m[1][0];
+	otherRow1.m_y = p_other->m_body->m_orientation.m_m[1][1];
+	otherRow1.m_z = p_other->m_body->m_orientation.m_m[1][2];
+	otherRow2.m_x = p_other->m_body->m_orientation.m_m[2][0];
+	otherRow2.m_y = p_other->m_body->m_orientation.m_m[2][1];
+	otherRow2.m_z = p_other->m_body->m_orientation.m_m[2][2];
+
+	switch (bestAxis) {
+	case 0:
+		*p_normal = thisRow0;
+		break;
+	case 1:
+		*p_normal = otherRow0;
+		break;
+	case 2:
+		*p_normal = thisRow1;
+		break;
+	case 3:
+		*p_normal = thisRow2;
+		break;
+	case 4:
+		*p_normal = otherRow1;
+		break;
+	case 5:
+		*p_normal = otherRow2;
+		break;
+	case 6:
+		p_normal->m_x = otherRow0.m_z * thisRow0.m_y - otherRow0.m_y * thisRow0.m_z;
+		p_normal->m_y = thisRow0.m_z * otherRow0.m_x - otherRow0.m_z * thisRow0.m_x;
+		p_normal->m_z = otherRow0.m_y * thisRow0.m_x - thisRow0.m_y * otherRow0.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 7:
+		p_normal->m_x = otherRow1.m_z * thisRow0.m_y - otherRow1.m_y * thisRow0.m_z;
+		p_normal->m_y = thisRow0.m_z * otherRow1.m_x - otherRow1.m_z * thisRow0.m_x;
+		p_normal->m_z = otherRow1.m_y * thisRow0.m_x - thisRow0.m_y * otherRow1.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 8:
+		p_normal->m_x = otherRow2.m_z * thisRow0.m_y - otherRow2.m_y * thisRow0.m_z;
+		p_normal->m_y = thisRow0.m_z * otherRow2.m_x - otherRow2.m_z * thisRow0.m_x;
+		p_normal->m_z = otherRow2.m_y * thisRow0.m_x - thisRow0.m_y * otherRow2.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 9:
+		p_normal->m_x = otherRow0.m_z * thisRow1.m_y - otherRow0.m_y * thisRow1.m_z;
+		p_normal->m_y = thisRow1.m_z * otherRow0.m_x - otherRow0.m_z * thisRow1.m_x;
+		p_normal->m_z = otherRow0.m_y * thisRow1.m_x - thisRow1.m_y * otherRow0.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 10:
+		p_normal->m_x = otherRow1.m_z * thisRow1.m_y - otherRow1.m_y * thisRow1.m_z;
+		p_normal->m_y = thisRow1.m_z * otherRow1.m_x - otherRow1.m_z * thisRow1.m_x;
+		p_normal->m_z = otherRow1.m_y * thisRow1.m_x - thisRow1.m_y * otherRow1.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 11:
+		p_normal->m_x = otherRow2.m_z * thisRow1.m_y - otherRow2.m_y * thisRow1.m_z;
+		p_normal->m_y = thisRow1.m_z * otherRow2.m_x - otherRow2.m_z * thisRow1.m_x;
+		p_normal->m_z = otherRow2.m_y * thisRow1.m_x - thisRow1.m_y * otherRow2.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 12:
+		p_normal->m_x = otherRow0.m_z * thisRow2.m_y - otherRow0.m_y * thisRow2.m_z;
+		p_normal->m_y = thisRow2.m_z * otherRow0.m_x - otherRow0.m_z * thisRow2.m_x;
+		p_normal->m_z = otherRow0.m_y * thisRow2.m_x - thisRow2.m_y * otherRow0.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 13:
+		p_normal->m_x = otherRow1.m_z * thisRow2.m_y - otherRow1.m_y * thisRow2.m_z;
+		p_normal->m_y = thisRow2.m_z * otherRow1.m_x - otherRow1.m_z * thisRow2.m_x;
+		p_normal->m_z = otherRow1.m_y * thisRow2.m_x - thisRow2.m_y * otherRow1.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	case 14:
+		p_normal->m_x = otherRow2.m_z * thisRow2.m_y - otherRow2.m_y * thisRow2.m_z;
+		p_normal->m_y = thisRow2.m_z * otherRow2.m_x - otherRow2.m_z * thisRow2.m_x;
+		p_normal->m_z = otherRow2.m_y * thisRow2.m_x - thisRow2.m_y * otherRow2.m_x;
+		GolMath::NormalizeVector3(*p_normal, p_normal);
+		break;
+	default:
+		break;
+	}
+
+	GolVec3 direction = m_centerOfMassWorld - p_other->m_centerOfMassWorld;
+	LegoFloat dot = p_normal->m_y * direction.m_y;
+	dot += direction.m_z * p_normal->m_z;
+	dot += direction.m_x * p_normal->m_x;
+	if (dot < 0.0f) {
+		p_normal->m_x = -p_normal->m_x;
+		p_normal->m_y = -p_normal->m_y;
+		p_normal->m_z = -p_normal->m_z;
+	}
+
+	return TRUE;
+}

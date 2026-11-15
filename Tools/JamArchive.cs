@@ -1,0 +1,7 @@
+using System;using System.IO;using System.Text;
+public static class JamArchive {
+ public static void Write(string directory,string output){using(var w=new BinaryWriter(File.Create(output))){w.Write(Encoding.ASCII.GetBytes("LJAM"));WriteDirectory(w,new DirectoryInfo(directory));}}
+ static void Name(BinaryWriter w,string name){byte[] bytes=Encoding.ASCII.GetBytes(name.ToUpperInvariant());if(bytes.Length>12)throw new Exception("JAM filename too long: "+name);w.Write(bytes);w.Write(new byte[12-bytes.Length]);}
+ static void Patch(BinaryWriter w,long at,uint value){long end=w.BaseStream.Position;w.BaseStream.Position=at;w.Write(value);w.BaseStream.Position=end;}
+ static void WriteDirectory(BinaryWriter w,DirectoryInfo directory){var files=directory.GetFiles();var dirs=directory.GetDirectories();Array.Sort(files,(a,b)=>String.CompareOrdinal(a.Name,b.Name));Array.Sort(dirs,(a,b)=>String.CompareOrdinal(a.Name,b.Name));w.Write(files.Length);var offsets=new long[files.Length];for(int i=0;i<files.Length;i++){Name(w,files[i].Name);offsets[i]=w.BaseStream.Position;w.Write(0);w.Write((uint)files[i].Length);}w.Write(dirs.Length);var childOffsets=new long[dirs.Length];for(int i=0;i<dirs.Length;i++){Name(w,dirs[i].Name);childOffsets[i]=w.BaseStream.Position;w.Write(0);}for(int i=0;i<dirs.Length;i++){Patch(w,childOffsets[i],(uint)w.BaseStream.Position);WriteDirectory(w,dirs[i]);}for(int i=0;i<files.Length;i++){Patch(w,offsets[i],(uint)w.BaseStream.Position);w.Write(File.ReadAllBytes(files[i].FullName));}}
+}

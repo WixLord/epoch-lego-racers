@@ -1,0 +1,9 @@
+Build/
+Game*/
+Original Game/
+Backups/
+Assets/
+Exports/
+Distribution/artifacts/
+*.log
+*.pdb

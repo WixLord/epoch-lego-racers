@@ -1,0 +1,1251 @@
+#include "race/racestate.h"
+
+#include "audio/soundnode.h"
+#include "audio/spatialsoundinstance.h"
+#include "audio/streamingsoundinstance.h"
+#include "camera/golcamera.h"
+#include "cmbmodelpart.h"
+#include "golbinparser.h"
+#include "golerror.h"
+#include "golmaterial.h"
+#include "golmateriallibrary.h"
+#include "material/goltexturelist.h"
+#include "menu/runtime/cutsceneparticle.h"
+#include "menu/runtime/cutsceneplayer.h"
+#include "race/racecameracontroller.h"
+#include "race/raceeventtable.h"
+#include "race/raceforcefeedback.h"
+#include "race/racehud.h"
+#include "race/racer/racerouterecord.h"
+#include "race/racesoundsource.h"
+#include "race/timeracemanager.h"
+#include "render/gold3drenderdevice.h"
+#include "surface/gold3dtexture.h"
+#include "util/carshadowrenderstate.h"
+
+#include <float.h>
+#include <math.h>
+#include <string.h>
+
+extern LegoU16 g_randomTable[1024];
+extern LegoU32 g_randomTableIndex;
+extern LegoFloat g_carBuildPreviewMouseScale;
+
+DECOMP_SIZE_ASSERT(RaceState, 0x320)
+DECOMP_SIZE_ASSERT(RaceState::RacerProgressEntry, 0x0c)
+DECOMP_SIZE_ASSERT(RaceRoster, 0x194)
+
+extern const LegoFloat g_ghostAnimationRateScale;
+extern const LegoFloat g_ghostSampleFractionScale;
+extern const LegoFloat g_negativeRadiansToTableIndex;
+extern const LegoFloat g_two;
+extern LegoU32 g_silhouetteClearFlag;
+extern LegoU32 g_silhouetteFlattenFlag;
+extern LegoFloat g_cosineTable[1024];
+
+extern const LegoFloat g_twoPi;
+extern const LegoFloat g_pathMinSegmentLengthSquared;
+
+extern const LegoFloat g_unk0x004b02e0;
+extern const LegoFloat g_unk0x004b0a1c;
+extern const LegoChar* g_racerDatabaseNames[3];
+extern const LegoFloat g_proximityPitchFloor;
+extern const LegoFloat g_proximityPitchBand;
+extern const LegoFloat g_proximityPitchSpeedRange;
+extern const LegoFloat g_carModelScale;
+extern const LegoFloat g_driverModelScale;
+extern const LegoFloat g_proximitySoundMinDistance;
+extern const LegoFloat g_proximitySoundMaxDistance;
+extern LegoFloat g_proximitySoundMaxDistanceSquared;
+
+DECOMP_SIZE_ASSERT(RaceRouteRecord, 0x48)
+DECOMP_SIZE_ASSERT(Racer::StandingsDeltaEntry, 0x0c)
+
+// FUNCTION: LEGORACERS 0x0043ae40
+RaceState::RaceState()
+{
+	Reset();
+}
+
+// FUNCTION: LEGORACERS 0x0043aee0
+RaceState::~RaceState()
+{
+	Destroy();
+}
+
+// FUNCTION: LEGORACERS 0x0043af80
+void RaceState::Reset()
+{
+	m_roster.m_racers = NULL;
+	m_roster.m_checkpointGraph = NULL;
+	m_roster.m_racerCount = 0;
+	m_roster.m_soundSource = NULL;
+
+	LegoS32 i;
+	for (i = 0; i < sizeOfArray(m_roster.m_racerEvents); i++) {
+		m_roster.m_racerEvents[i] = 0;
+		m_roster.m_startPositions[i].m_x = 0.0f;
+		m_roster.m_startPositions[i].m_y = 0.0f;
+		m_roster.m_startPositions[i].m_z = 0.0f;
+		m_roster.m_startDirections[i].m_x = 0.0f;
+		m_roster.m_startDirections[i].m_y = 0.0f;
+		m_roster.m_startDirections[i].m_z = 0.0f;
+		m_roster.m_startUps[i].m_x = 0.0f;
+		m_roster.m_startUps[i].m_y = 0.0f;
+		m_roster.m_startUps[i].m_z = 0.0f;
+		m_roster.m_placementSlots[i] = 0;
+	}
+
+	m_roster.m_proximitySound = NULL;
+	m_roster.m_currentRacer = NULL;
+	m_roster.m_golExport = NULL;
+	m_roster.m_timeRaceManager = NULL;
+
+	for (i = 0; i < sizeOfArray(m_roster.m_customCarModels); i++) {
+		m_roster.m_customCarModels[i] = 0;
+		m_roster.m_customCarEntities[i] = 0;
+	}
+
+	m_roster.m_customCarCount = 0;
+	m_roster.m_routeRecords = NULL;
+	m_setup.m_textureList = 0;
+	m_setup.m_materialLibrary = 0;
+	m_setup.m_lapCount = 0;
+}
+
+// FUNCTION: LEGORACERS 0x0043b030
+void RaceState::Destroy()
+{
+	m_setup.Destroy();
+
+	if (m_setup.m_materialLibrary) {
+		m_roster.m_golExport->DestroyMaterialList(m_setup.m_materialLibrary);
+		m_setup.m_materialLibrary = NULL;
+	}
+
+	if (m_setup.m_textureList) {
+		m_roster.m_golExport->DestroyTextureList(m_setup.m_textureList);
+		m_setup.m_textureList = NULL;
+	}
+
+	LegoS32 i;
+	for (i = 0; i < 2; i++) {
+		if (m_roster.m_customCarModels[i]) {
+			delete m_roster.m_customCarModels[i];
+			m_roster.m_customCarModels[i] = NULL;
+		}
+
+		if (m_roster.m_customCarEntities[i]) {
+			delete m_roster.m_customCarEntities[i];
+			m_roster.m_customCarEntities[i] = NULL;
+		}
+	}
+
+	GolNameTable* table = &m_chassisTable;
+	table->Clear();
+
+	table = &m_championList;
+	table->Clear();
+
+	table = &m_driverTable;
+	table->Clear();
+
+	if (m_roster.m_proximitySound) {
+		m_roster.m_soundSource->ReleaseSound(m_roster.m_proximitySound);
+		m_roster.m_proximitySound = NULL;
+	}
+
+	LegoU32 racerIndex;
+	for (racerIndex = 0; racerIndex < m_roster.m_racerCount; racerIndex++) {
+		if (m_roster.m_racerEvents[racerIndex]) {
+			m_roster.m_racerEvents[racerIndex]->m_active = 0;
+			m_roster.m_racerEvents[racerIndex] = NULL;
+		}
+	}
+
+	LegoEventQueue* queue = &m_roster;
+	queue->Destroy();
+
+	if (m_roster.m_racers) {
+		for (racerIndex = 0; racerIndex < m_roster.m_racerCount; racerIndex++) {
+			(*(m_roster.m_racers + racerIndex)).Destroy();
+		}
+
+		delete[] m_roster.m_racers;
+
+		m_roster.m_racers = NULL;
+	}
+
+	Reset();
+}
+
+// FUNCTION: LEGORACERS 0x0043b190
+void RaceState::CreateRacers(CreateRacersParams* p_params, RacerContext* p_context, LegoBool32 p_binary)
+{
+	m_roster.m_checkpointGraph = p_context->m_checkpointGraph;
+	m_roster.m_soundSource = p_context->m_soundSource;
+	m_roster.m_powerupManager = p_context->m_powerupManager;
+	m_roster.m_golExport = p_context->m_golExport;
+	m_roster.m_timeRaceManager = p_params->m_timeRaceManager;
+	m_roster.m_routeRecords = p_params->m_routeRecords;
+	m_setup.m_lapCount = p_params->m_lapCount;
+	static_cast<LegoEventQueue*>(&m_roster)->Initialize(100);
+
+	m_roster.m_raceState = this;
+	m_roster.m_racerCount = p_params->m_racerCount;
+	m_roster.m_racers = new Racer[m_roster.m_racerCount];
+	if (m_roster.m_racers == NULL) {
+		GOL_FATALERROR(c_golErrorOutOfMemory);
+	}
+
+	m_setup.m_textureList = m_roster.m_golExport->CreateTextureList();
+	m_setup.m_materialLibrary = m_roster.m_golExport->CreateMaterialList();
+	m_setup.m_textureList->Initialize(p_context->m_renderer, m_roster.m_racerCount);
+	m_setup.m_materialLibrary->Initialize(p_context->m_renderer, m_roster.m_racerCount);
+
+	DriverCosmeticTable::LoadParams driverParams;
+	driverParams.m_golExport = p_context->m_golExport;
+	driverParams.m_renderer = p_context->m_renderer;
+	driverParams.m_entryCapacity = m_roster.m_racerCount;
+	driverParams.m_filename = g_racerDatabaseNames[0];
+	driverParams.m_binary = p_binary;
+	m_driverTable.Load(&driverParams);
+
+	ChampionDefinitionList::LoadParams championParams;
+	championParams.m_golExport = p_context->m_golExport;
+	championParams.m_renderer = p_context->m_renderer;
+	championParams.m_entryCapacity = m_roster.m_racerCount;
+	championParams.m_fileName = g_racerDatabaseNames[1];
+	championParams.m_binary = p_binary;
+	m_championList.Load(&championParams);
+
+	ChassisModelTable::Params chassisParams;
+	chassisParams.m_golExport = p_context->m_golExport;
+	chassisParams.m_renderer = p_context->m_renderer;
+	chassisParams.m_instantiateCount = m_roster.m_racerCount;
+	chassisParams.m_filename = g_racerDatabaseNames[2];
+	chassisParams.m_binary = p_binary;
+	m_chassisTable.Load(&chassisParams);
+
+	for (LegoU32 i = 0; i < m_roster.m_racerCount; i++) {
+		p_context->m_routeRecord = p_params->m_racerRoutes[i];
+		CreateRacer(p_params->m_slots[i], p_context, i, p_params->m_splitScreen);
+	}
+
+	m_chassisTable.ReleaseInstances();
+	m_championList.ClearDefinitions();
+	m_driverTable.ClearEntries();
+	m_setup.m_textureList->LoadTextures();
+	m_setup.m_materialLibrary->CreateMaterials();
+	m_setup.Initialize(m_roster.m_racers, m_roster.m_racerCount);
+}
+
+// FUNCTION: LEGORACERS 0x0043b480
+void RaceState::CreateRacer(
+	LegoRacers::Context::PlayerSetupSlot* p_slot,
+	RacerContext* p_context,
+	LegoU32 p_racerIndex,
+	undefined4 p_splitScreen
+)
+{
+	Racer::SetupParams racerParams;
+	CarVisuals::InitParams initParams;
+	initParams.m_isMotorbike = !::strncmp(p_slot->m_chassisName, "bike", 8);
+
+	ChampionDefinitionList::ChampionDefinition* championDefinition = NULL;
+	racerParams.m_displayNameWide = NULL;
+	racerParams.m_displayName[0] = '\0';
+	racerParams.m_aiChargeColor = 0;
+	racerParams.m_aiChargeTarget = 0;
+	ChassisModelTable::Item* chassisItem;
+	if (p_slot->m_driverName[0]) {
+		DriverCosmeticTable::Entry* driverEntry =
+			static_cast<DriverCosmeticTable::Entry*>(m_driverTable.GetName(p_slot->m_driverName));
+
+		initParams.m_driverEntity = m_driverTable.LoadEntry(p_slot->m_driverName);
+		championDefinition =
+			static_cast<ChampionDefinitionList::ChampionDefinition*>(m_championList.GetName(driverEntry->m_championName)
+			);
+		initParams.m_bodyModel = m_championList.CreateChampionModel(driverEntry->m_championName);
+		chassisItem = static_cast<ChassisModelTable::Item*>(m_chassisTable.GetName(championDefinition->m_chassisName));
+		m_chassisTable.InstantiateModels(chassisItem, &initParams.m_carEntity, &initParams.m_secondaryModel);
+
+		racerParams.m_handlingStat = chassisItem->m_handlingStat;
+		racerParams.m_accelerationStat = chassisItem->m_accelerationStat;
+		racerParams.m_topSpeedStat = chassisItem->m_topSpeedStat;
+		racerParams.m_driverStats[0] = driverEntry->m_redStat;
+		racerParams.m_driverStats[1] = driverEntry->m_yellowStat;
+		racerParams.m_driverStats[2] = driverEntry->m_greenStat;
+		racerParams.m_driverStats[3] = driverEntry->m_blueStat;
+		racerParams.m_driverStats[4] = driverEntry->m_stat4;
+		racerParams.m_driverStats[5] = driverEntry->m_stat5;
+		racerParams.m_voiceBank = driverEntry->m_voiceBankIndex * 12 + 1100;
+
+		switch (driverEntry->m_aiChargeColor) {
+		case 1:
+			racerParams.m_aiChargeColor = 1;
+			break;
+		case 2:
+			racerParams.m_aiChargeColor = 2;
+			break;
+		case 3:
+			racerParams.m_aiChargeColor = 3;
+			break;
+		case 4:
+			racerParams.m_aiChargeColor = 4;
+			break;
+		default:
+			racerParams.m_aiChargeColor = 0;
+			break;
+		}
+
+		racerParams.m_aiChargeTarget = driverEntry->m_aiChargeTarget;
+		racerParams.m_displayNameWide = m_driverTable.GetStringBuffer(p_slot->m_driverName);
+	}
+	else {
+		m_roster.m_customCarModels[m_roster.m_customCarCount] = new GolModelEntity;
+		if (m_roster.m_customCarModels[m_roster.m_customCarCount] == NULL) {
+			GOL_FATALERROR(c_golErrorOutOfMemory);
+		}
+
+		m_roster.m_customCarEntities[m_roster.m_customCarCount] = new GolAnimatedEntity;
+		// Retail checks the body allocation again after allocating the animated entity.
+		if (m_roster.m_customCarModels[m_roster.m_customCarCount] == NULL) {
+			GOL_FATALERROR(c_golErrorOutOfMemory);
+		}
+
+		p_slot->m_textures->LoadTextures();
+		p_slot->m_materials->CreateMaterials();
+		m_roster.m_customCarModels[m_roster.m_customCarCount]->SetPrimaryModel(p_slot->m_model, g_carModelScale);
+		initParams.m_bodyModel = m_roster.m_customCarModels[m_roster.m_customCarCount];
+
+		if (p_slot->m_altModel == NULL) {
+			LegoChar fallbackName[3];
+			fallbackName[0] = 'b';
+			fallbackName[1] = 'b';
+			fallbackName[2] = '\0';
+			m_driverTable.GetName(fallbackName);
+			initParams.m_driverEntity = m_driverTable.LoadEntry(fallbackName);
+		}
+		else {
+			p_slot->m_altTextures->LoadTextures();
+			p_slot->m_altMaterials->CreateMaterials();
+			m_roster.m_customCarEntities[m_roster.m_customCarCount]->SetModel(
+				p_slot->m_altModel,
+				m_driverTable.m_rootNode,
+				&m_driverTable.m_modelParts,
+				g_driverModelScale
+			);
+			initParams.m_driverEntity = m_roster.m_customCarEntities[m_roster.m_customCarCount];
+		}
+
+		chassisItem = static_cast<ChassisModelTable::Item*>(m_chassisTable.GetName(p_slot->m_chassisName));
+		m_chassisTable.InstantiateModels(chassisItem, &initParams.m_carEntity, &initParams.m_secondaryModel);
+		if (p_slot->m_chassisPaintEnabled) {
+			GolMaterialColor
+				color(p_slot->m_chassisPaintRgb[0], p_slot->m_chassisPaintRgb[1], p_slot->m_chassisPaintRgb[2], 255);
+			m_chassisTable.ApplyChassisPaint(initParams.m_carEntity, &color);
+		}
+		racerParams.m_handlingStat = chassisItem->m_handlingStat;
+		racerParams.m_accelerationStat = chassisItem->m_accelerationStat;
+		racerParams.m_topSpeedStat = chassisItem->m_topSpeedStat;
+
+		racerParams.m_driverStats[0] = 100;
+		racerParams.m_driverStats[1] = 100;
+		racerParams.m_driverStats[2] = 100;
+		racerParams.m_driverStats[3] = 100;
+		racerParams.m_driverStats[4] = 100;
+		racerParams.m_driverStats[5] = 100;
+
+		racerParams.m_voiceBank = p_racerIndex * 100 + 1000;
+		::strcpy(racerParams.m_displayName, p_slot->m_playerName);
+		m_roster.m_customCarCount++;
+	}
+
+	initParams.m_driverMountOffset = chassisItem->m_driverMountOffset;
+	initParams.m_racer = &m_roster.m_racers[p_racerIndex];
+	initParams.m_shadowWidth = chassisItem->m_shadowSize.m_x;
+	initParams.m_shadowLength = chassisItem->m_shadowSize.m_y;
+	initParams.m_frontSkidWidth = chassisItem->m_skidWidths.m_x;
+	initParams.m_rearSkidWidth = chassisItem->m_skidWidths.m_y;
+	::strncpy(initParams.m_materialName, "carshad", sizeof(initParams.m_materialName));
+	initParams.m_materialName[sizeof(initParams.m_materialName) - 1] = static_cast<LegoChar>('0' + p_racerIndex);
+
+	for (LegoU32 i = 0; i < sizeOfArray(initParams.m_wheelOffsets); i++) {
+		initParams.m_wheelOffsets[i] = chassisItem->m_wheelOffsets[i];
+		racerParams.m_wheelPositions[i] = chassisItem->m_wheelPositions[i];
+	}
+
+	racerParams.m_eventTable = p_context->m_eventTable;
+	racerParams.m_surfaceTable = p_context->m_surfaceTable;
+	racerParams.m_trackWorld = p_context->m_trackWorld;
+	racerParams.m_enginePitchScale = chassisItem->m_enginePitchScale;
+
+	if (championDefinition) {
+		::memcpy(&racerParams.m_centerOfMass, &championDefinition->m_centerOfMassX, sizeof(racerParams.m_centerOfMass));
+		racerParams.m_mass = championDefinition->m_mass;
+		racerParams.m_weight = 0.0f;
+	}
+	else {
+		racerParams.m_centerOfMass.m_x = p_slot->m_centroidX;
+		racerParams.m_centerOfMass.m_x *= 0.25f;
+		racerParams.m_centerOfMass.m_x += chassisItem->m_centerOfMass.m_x;
+		racerParams.m_centerOfMass.m_y = p_slot->m_centroidY;
+		racerParams.m_centerOfMass.m_y *= 0.25f;
+		racerParams.m_centerOfMass.m_y += chassisItem->m_centerOfMass.m_y;
+		racerParams.m_centerOfMass.m_z = chassisItem->m_centerOfMass.m_z;
+		racerParams.m_mass = chassisItem->m_baseMass + p_slot->m_highPieceCount;
+		racerParams.m_weight = p_slot->m_highPieceCount;
+	}
+
+	m_roster.m_placementSlots[p_racerIndex] = p_racerIndex;
+	if (m_roster.m_timeRaceManager) {
+		if (m_roster.m_timeRaceManager->HasRecordRunLapTimes()) {
+			m_roster.m_placementSlots[p_racerIndex] = 2;
+		}
+		else {
+			m_roster.m_placementSlots[p_racerIndex] = 1;
+		}
+	}
+	else if (p_splitScreen && p_racerIndex == 0) {
+		m_roster.m_placementSlots[0] = 2;
+	}
+
+	LegoU32 placementIndex = m_roster.m_placementSlots[p_racerIndex];
+	initParams.m_carEntity->SetPosition(m_roster.m_startPositions[placementIndex]);
+	placementIndex = m_roster.m_placementSlots[p_racerIndex];
+	initParams.m_carEntity->SetDirectionUp(
+		m_roster.m_startDirections[placementIndex],
+		m_roster.m_startUps[placementIndex]
+	);
+
+	racerParams.m_lapCount = m_setup.m_lapCount;
+	m_roster.m_racers[p_racerIndex].Initialize(p_context, &initParams, &racerParams, this, p_racerIndex);
+	m_roster.m_racers[p_racerIndex].m_driveController.m_previewCursor = &m_sharedRouteCursor;
+
+	GolD3DTexture* shadowTexture = m_setup.m_textureList->GetItem(p_racerIndex);
+	GolMaterial* shadowMaterial = m_setup.m_materialLibrary->GetItem(p_racerIndex);
+	shadowTexture->SetNameFromBuffer(chassisItem->m_shadowName);
+	shadowTexture->SetTextureFlags(GolTexture::c_textureFlagFlipVertically | GolTexture::c_textureFlagBmpSource);
+	shadowMaterial->SetName(chassisItem->m_shadowName);
+
+	GolMaterialParams shadowMaterialParams;
+	::memset(&shadowMaterialParams, 0, sizeof(shadowMaterialParams));
+	shadowMaterialParams.m_flags = GolMaterial::c_flagGouraudShading | GolMaterial::c_flagTextured |
+								   GolMaterial::c_flagModulate | GolMaterial::c_flagNoAlphaTest |
+								   GolMaterial::c_flagNoAlphaBlend | GolMaterial::c_flagLinearFilter |
+								   GolMaterial::c_flagNoTransparency | GolMaterial::c_flagWrap |
+								   GolMaterial::c_flagBit20 | GolMaterial::c_flagBit22;
+	shadowMaterialParams.m_texture = shadowTexture;
+	shadowMaterial->SetParams(p_context->m_renderer, shadowMaterialParams);
+
+	Racer* racer = &m_roster.m_racers[p_racerIndex];
+
+	LegoEventQueue::Descriptor descriptor;
+	descriptor.m_type = LegoEventQueue::Descriptor::c_typeCollision;
+	descriptor.m_flags = 5;
+	descriptor.m_hitThreshold = 0;
+	descriptor.m_data = &racer->m_physics;
+	m_roster.m_racerEvents[p_racerIndex] = m_roster.AllocateEvent(racer, &descriptor);
+}
+
+// FUNCTION: LEGORACERS 0x0043bc10
+void RaceState::LoadStartPositions(const LegoChar* p_name, LegoBool32 p_binary, LegoBool32 p_mirror)
+{
+	GolFileParser* parser;
+	if (p_binary) {
+		parser = new GolBinParser;
+		if (parser == NULL) {
+			GOL_FATALERROR(c_golErrorOutOfMemory);
+		}
+		parser->SetSuffix(".spb");
+	}
+	else {
+		parser = new SpbTxtParser;
+		if (parser == NULL) {
+			GOL_FATALERROR(c_golErrorOutOfMemory);
+		}
+	}
+
+	parser->OpenFileForRead(p_name);
+	parser->AssertNextTokenIs(static_cast<GolFileParser::ParserTokenType>(SpbTxtParser::e_startPosition));
+	LegoU32 count = parser->ReadBracketedCountAndLeftCurly();
+
+	if (count > 0) {
+		LegoU32 remaining = count;
+		do {
+			parser->AssertNextTokenIs(static_cast<GolFileParser::ParserTokenType>(SpbTxtParser::e_startPosition));
+			LegoU32 index = parser->ReadInteger();
+			parser->ReadLeftCurly();
+
+			GolFileParser::ParserTokenType token = parser->GetNextToken();
+			while (token != GolFileParser::e_rightCurly) {
+				switch (token) {
+				case SpbTxtParser::e_position:
+					m_roster.m_startPositions[index].m_x = parser->ReadFloat();
+					m_roster.m_startPositions[index].m_y = parser->ReadFloat();
+					m_roster.m_startPositions[index].m_z = parser->ReadFloat();
+					if (p_mirror) {
+						m_roster.m_startPositions[index].m_y = -m_roster.m_startPositions[index].m_y;
+					}
+					break;
+				case SpbTxtParser::e_orientation:
+					m_roster.m_startDirections[index].m_x = parser->ReadFloat();
+					m_roster.m_startDirections[index].m_y = parser->ReadFloat();
+					m_roster.m_startDirections[index].m_z = parser->ReadFloat();
+					m_roster.m_startUps[index].m_x = parser->ReadFloat();
+					m_roster.m_startUps[index].m_y = parser->ReadFloat();
+					m_roster.m_startUps[index].m_z = parser->ReadFloat();
+					if (p_mirror) {
+						m_roster.m_startDirections[index].m_y = -m_roster.m_startDirections[index].m_y;
+						m_roster.m_startUps[index].m_y = -m_roster.m_startUps[index].m_y;
+					}
+					break;
+				default:
+					parser->HandleUnexpectedToken(GolFileParser::e_syntaxerror);
+					break;
+				}
+
+				token = parser->GetNextToken();
+			}
+		} while (--remaining);
+	}
+
+	parser->ReadRightCurly();
+	parser->Dispose();
+	if (parser != NULL) {
+		delete parser;
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043be60
+void RaceState::InitializeRacerVisuals(GolD3DRenderDevice* p_renderer, GolExport* p_golExport)
+{
+	for (LegoU32 i = 0; i < m_roster.m_racerCount; i++) {
+		m_roster.m_racers[i].m_visuals.InitializeVisuals(p_renderer, p_golExport);
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043beb0
+void RaceState::RecordBestTimes(LegoRacers::Context* p_context)
+{
+	LegoU32 bestLapTime = c_invalidTime;
+	LegoU32 bestRaceTime = c_invalidTime;
+	LegoU32 bestRacerIndex = c_invalidTime;
+	LegoU32 racerCount = m_roster.m_racerCount;
+
+	if (racerCount > 0) {
+		LegoU32 racerIndex;
+
+		racerIndex = 0;
+		do {
+			if (!p_context->m_playerSetupSlots[racerIndex].m_slotState) {
+				Racer* racer = &m_roster.m_racers[racerIndex];
+				LegoU32 lapCount = m_setup.m_lapCount;
+				if (racer->m_lapsCompleted >= lapCount) {
+					LegoU32 raceTime = 0;
+					if (lapCount > 0) {
+						LegoU32 remaining = lapCount;
+						LegoU32* lapTimes = racer->m_lapTimes;
+
+						do {
+							LegoU32 lapTime = *lapTimes;
+							if (lapTime < bestLapTime) {
+								bestLapTime = lapTime;
+								bestRacerIndex = racerIndex;
+							}
+							raceTime += lapTime;
+							lapTimes++;
+						} while (--remaining);
+					}
+
+					if (raceTime < bestRaceTime) {
+						bestRaceTime = raceTime;
+					}
+				}
+			}
+
+			racerIndex++;
+		} while (racerIndex < racerCount);
+	}
+
+	if (bestLapTime < c_invalidTime) {
+		LegoU32* lapRecord = &p_context->m_bestLapTimes[p_context->m_currentRaceIndex];
+		if (!*lapRecord || bestLapTime <= *lapRecord) {
+			*lapRecord = bestLapTime;
+			p_context->m_bestLapHolders[p_context->m_currentRaceIndex] = bestRacerIndex;
+		}
+	}
+
+	if (bestRaceTime < c_invalidTime) {
+		LegoU32* raceRecord = &p_context->m_bestRaceTimes[p_context->m_currentRaceIndex];
+		if (!*raceRecord || bestRaceTime <= *raceRecord) {
+			*raceRecord = bestRaceTime;
+			p_context->m_bestRaceHolders[p_context->m_currentRaceIndex] = bestRacerIndex;
+		}
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043bff0
+void RaceState::DrawRacersTransparent(GolD3DRenderDevice* p_renderer)
+{
+	for (LegoU32 i = 0; i < m_roster.m_racerCount; i++) {
+		Racer* racer = &m_roster.m_racers[i];
+		racer->m_visuals.DrawTransparent(p_renderer);
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043c030
+void RaceState::UpdateRacers(LegoU32 p_elapsedMs)
+{
+	Racer* racer = m_roster.m_racers;
+	Racer* end = racer + m_roster.m_racerCount;
+
+	for (; racer < end; racer++) {
+		if (racer->m_driveController.m_flags & DriveController::c_flagBrakeToStop) {
+			racer->m_driveController.UpdateBrakeToStop(p_elapsedMs);
+		}
+		else {
+			if (racer->m_controlMode != Racer::c_controlAi) {
+				racer->m_driveController.Update(p_elapsedMs);
+			}
+			else if (racer->m_driveController.m_flags & DriveController::c_flagReturnToPath) {
+				racer->m_driveController.UpdateReturnToPath(p_elapsedMs);
+			}
+		}
+	}
+
+	for (racer = m_roster.m_racers; racer < end; racer++) {
+		racer->m_physics.Update(p_elapsedMs);
+	}
+
+	for (racer = m_roster.m_racers; racer < end; racer++) {
+		if (racer->m_flags & Racer::c_flagDrifting) {
+			racer->UpdateDriftLean();
+		}
+	}
+
+	RaceRoster* queue = &m_roster;
+	queue->Update(p_elapsedMs);
+
+	for (racer = m_roster.m_racers; racer < end; racer++) {
+		racer->UpdateCarAnimation(p_elapsedMs);
+	}
+
+	for (racer = m_roster.m_racers; racer < end; racer++) {
+		racer->UpdateEngineSound(p_elapsedMs);
+		racer->UpdateSpatialSounds();
+	}
+
+	for (racer = m_roster.m_racers; racer < end; racer++) {
+		racer->UpdateTimers(p_elapsedMs);
+	}
+
+	UpdateStandings();
+	m_setup.Update(p_elapsedMs);
+}
+
+// FUNCTION: LEGORACERS 0x0043c1b0
+void RaceState::UpdateStandings()
+{
+	GolVec3 position;
+
+	Racer* racer = m_roster.m_racers;
+	LegoU32 racerIndex;
+	for (racerIndex = 0; racerIndex < m_roster.m_racerCount; racerIndex++, racer++) {
+		g_racerProgressEntries[racerIndex].m_racer = racer;
+		g_racerProgressEntries[racerIndex].m_progress = racer->GetRaceProgress();
+	}
+
+	LegoU32 sortIndex;
+	for (sortIndex = 0; sortIndex < m_roster.m_racerCount - 1; sortIndex++) {
+		LegoU32 minIndex = sortIndex;
+		LegoFloat minProgress = g_racerProgressEntries[sortIndex].m_progress;
+
+		LegoU32 scanIndex;
+		for (scanIndex = sortIndex + 1; scanIndex < m_roster.m_racerCount; scanIndex++) {
+			if (minProgress > g_racerProgressEntries[scanIndex].m_progress) {
+				minProgress = g_racerProgressEntries[scanIndex].m_progress;
+				minIndex = scanIndex;
+			}
+		}
+
+		if (minIndex > sortIndex) {
+			LegoFloat progress = g_racerProgressEntries[sortIndex].m_progress;
+			g_racerProgressEntries[sortIndex].m_progress = g_racerProgressEntries[minIndex].m_progress;
+			g_racerProgressEntries[minIndex].m_progress = progress;
+
+			Racer* racer = g_racerProgressEntries[sortIndex].m_racer;
+			g_racerProgressEntries[sortIndex].m_racer = g_racerProgressEntries[minIndex].m_racer;
+			g_racerProgressEntries[minIndex].m_racer = racer;
+		}
+	}
+
+	LegoU32 groupStart;
+	for (groupStart = 0; groupStart < m_roster.m_racerCount - 1;) {
+		LegoU32 groupEnd = groupStart + 1;
+		while (g_racerProgressEntries[groupStart].m_progress == g_racerProgressEntries[groupEnd].m_progress &&
+			   groupEnd < m_roster.m_racerCount) {
+			groupEnd++;
+		}
+
+		CheckpointGraph::Entry* pathField = g_racerProgressEntries[groupStart].m_racer->m_checkpoint;
+		if (groupEnd > groupStart + 1 && pathField) {
+			RacerProgressEntry* tiedEntry = &g_racerProgressEntries[groupStart];
+			LegoU32 tiedCount = groupEnd - groupStart;
+			do {
+
+				tiedEntry->m_racer->m_visuals.m_carEntity->GetPosition(&position);
+
+				LegoFloat nearestPlaneDistance = FLT_MAX;
+				LegoU32 planeIndex;
+				for (planeIndex = 0; planeIndex < sizeOfArray(pathField->m_next.m_items); planeIndex++) {
+					LegoU8 checkpointIndex = pathField->m_next.m_items[planeIndex];
+					if (checkpointIndex != 0xff) {
+						LegoU32 checkpointNumber = checkpointIndex;
+						CheckpointGraph::Entry* plane = m_roster.m_checkpointGraph->GetCheckpoint(checkpointNumber);
+						LegoFloat distance = plane->m_planeNormal.m_z * position.m_z;
+						distance += plane->m_planeNormal.m_y * position.m_y;
+						distance += position.m_x * plane->m_planeNormal.m_x;
+						distance += plane->m_planeDistance;
+						if (distance < nearestPlaneDistance) {
+							nearestPlaneDistance = distance;
+						}
+					}
+				}
+
+				tiedEntry->m_tieBreakDistance = nearestPlaneDistance;
+				tiedEntry++;
+			} while (--tiedCount);
+
+			LegoU32 tiedSortIndex;
+			for (tiedSortIndex = groupStart; tiedSortIndex < groupEnd; tiedSortIndex++) {
+				LegoU32 maxIndex = tiedSortIndex;
+				LegoFloat maxDistance = g_racerProgressEntries[tiedSortIndex].m_tieBreakDistance;
+
+				LegoU32 tiedScanIndex;
+				for (tiedScanIndex = tiedSortIndex + 1; tiedScanIndex < groupEnd; tiedScanIndex++) {
+					if (maxDistance < g_racerProgressEntries[tiedScanIndex].m_tieBreakDistance) {
+						maxDistance = g_racerProgressEntries[tiedScanIndex].m_tieBreakDistance;
+						maxIndex = tiedScanIndex;
+					}
+				}
+
+				if (maxIndex > tiedSortIndex) {
+					LegoFloat progress = g_racerProgressEntries[tiedSortIndex].m_progress;
+					g_racerProgressEntries[tiedSortIndex].m_progress = g_racerProgressEntries[maxIndex].m_progress;
+					g_racerProgressEntries[maxIndex].m_progress = progress;
+					LegoFloat distance = g_racerProgressEntries[tiedSortIndex].m_tieBreakDistance;
+					g_racerProgressEntries[tiedSortIndex].m_tieBreakDistance =
+						g_racerProgressEntries[maxIndex].m_tieBreakDistance;
+					g_racerProgressEntries[maxIndex].m_tieBreakDistance = distance;
+					Racer* racer = g_racerProgressEntries[tiedSortIndex].m_racer;
+					g_racerProgressEntries[tiedSortIndex].m_racer = g_racerProgressEntries[maxIndex].m_racer;
+					g_racerProgressEntries[maxIndex].m_racer = racer;
+				}
+			}
+		}
+
+		groupStart++;
+	}
+
+	LegoU32 rankIndex;
+	for (rankIndex = 0; rankIndex < m_roster.m_racerCount; rankIndex++) {
+		if (!(g_racerProgressEntries[rankIndex].m_racer->m_flags & Racer::c_flagFinished)) {
+			g_racerProgressEntries[rankIndex].m_racer->SetStandingsPosition(m_roster.m_racerCount - rankIndex);
+		}
+	}
+
+	if (m_roster.m_proximitySound && m_roster.m_currentRacer) {
+
+		Racer* nearestRacer = NULL;
+		LegoFloat nearestDistanceSquared = FLT_MAX;
+		m_roster.m_currentRacer->m_visuals.m_carEntity->GetPosition(&position);
+
+		LegoU32 nearestIndex;
+		for (nearestIndex = 0; nearestIndex < m_roster.m_racerCount; nearestIndex++) {
+			Racer* racer = &m_roster.m_racers[nearestIndex];
+			if (racer != m_roster.m_currentRacer) {
+				GolVec3 racerPosition;
+				racer->m_visuals.m_carEntity->GetPosition(&racerPosition);
+
+				LegoFloat deltaX = position.m_x - racerPosition.m_x;
+				LegoFloat deltaY = position.m_y - racerPosition.m_y;
+				LegoFloat deltaZ = position.m_z - racerPosition.m_z;
+				LegoFloat distanceSquared = deltaZ * deltaZ + deltaY * deltaY + deltaX * deltaX;
+				if (distanceSquared < nearestDistanceSquared) {
+					nearestDistanceSquared = distanceSquared;
+					nearestRacer = &m_roster.m_racers[nearestIndex];
+				}
+			}
+		}
+
+		if (nearestDistanceSquared < g_proximitySoundMaxDistanceSquared) {
+			if (!m_roster.m_proximitySound->IsPlaying()) {
+				m_roster.m_proximitySound->Play(TRUE);
+			}
+
+			nearestRacer->m_visuals.m_carEntity->GetPosition(&position);
+			GolVec3 velocity = nearestRacer->m_physics.m_velocity;
+			m_roster.m_proximitySound->SetPosition(position);
+			velocity.m_x *= g_unk0x004b0a1c;
+			velocity.m_y *= g_unk0x004b0a1c;
+			velocity.m_z *= g_unk0x004b0a1c;
+			m_roster.m_proximitySound->SetVelocity(velocity);
+
+			LegoFloat frequencyScale = nearestRacer->m_physics.m_speed / g_proximityPitchSpeedRange;
+			frequencyScale *= 1.0f - g_proximityPitchFloor - g_proximityPitchBand;
+			frequencyScale *= nearestRacer->m_enginePitchScale;
+			frequencyScale += g_proximityPitchFloor;
+
+			if (frequencyScale < 0.0f) {
+				frequencyScale = 0.0f;
+			}
+			else if (frequencyScale > 1.0f) {
+				frequencyScale = 1.0f;
+			}
+
+			if (nearestRacer->m_airborneMs > Racer::c_boostSoundElapsedThreshold) {
+				frequencyScale += g_unk0x004b02e0;
+			}
+
+			m_roster.m_proximitySound->SetFrequencyScale(frequencyScale);
+		}
+		else if (m_roster.m_proximitySound->IsPlaying()) {
+			m_roster.m_proximitySound->Stop();
+		}
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043c6a0
+void RaceState::UpdateShadows(GolCamera* p_camera)
+{
+	LegoU32 i = 0;
+	if (i < m_roster.m_racerCount) {
+		do {
+			m_roster.m_racers[i].m_visuals.UpdateShadow(p_camera);
+			i++;
+		} while (i < m_roster.m_racerCount);
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043c6e0
+Racer* RaceState::FindRacerInCone(
+	GolVec3* p_position,
+	GolVec3* p_direction,
+	LegoFloat p_minDistanceSquared,
+	LegoFloat p_maxDistanceSquared,
+	LegoFloat p_coneCosine
+)
+{
+	for (LegoS32 i = 0; i < static_cast<LegoS32>(m_roster.m_racerCount); i++) {
+		Racer* racer = &m_roster.m_racers[i];
+		CarVisuals* racerField = &racer->m_visuals;
+
+		GolVec3 position;
+		racerField->m_carEntity->GetPosition(&position);
+
+		LegoFloat distanceSquared = p_position->DistanceSquaredTo(position);
+		if (distanceSquared >= p_minDistanceSquared && distanceSquared <= p_maxDistanceSquared) {
+			GolVec3 delta;
+			delta.m_x = position.m_x - p_position->m_x;
+			delta.m_y = position.m_y - p_position->m_y;
+			delta.m_z = position.m_z - p_position->m_z;
+			GolMath::NormalizeVector3(delta, &delta);
+
+			LegoFloat dot = p_direction->m_z;
+			dot *= delta.m_z;
+			LegoFloat yDot = p_direction->m_y;
+			yDot *= delta.m_y;
+			dot += yDot;
+			dot += delta.m_x * p_direction->m_x;
+			if (dot >= p_coneCosine) {
+				return &m_roster.m_racers[i];
+			}
+		}
+	}
+
+	return NULL;
+}
+
+// FUNCTION: LEGORACERS 0x0043c7f0
+Racer* RaceState::FindNextRacerInCone(
+	Racer* p_racer,
+	GolVec3* p_position,
+	GolVec3* p_direction,
+	LegoFloat p_minDistanceSquared,
+	LegoFloat p_maxDistanceSquared,
+	LegoFloat p_coneCosine
+)
+{
+	LegoS32 i;
+	for (i = 0; i < static_cast<LegoS32>(m_roster.m_racerCount); i++) {
+		if (&m_roster.m_racers[i] <= p_racer) {
+			continue;
+		}
+
+		GolVec3 position;
+		m_roster.m_racers[i].m_visuals.m_carEntity->GetPosition(&position);
+
+		LegoFloat distanceSquared = p_position->DistanceSquaredTo(position);
+		if (distanceSquared >= p_minDistanceSquared && distanceSquared <= p_maxDistanceSquared) {
+			GolVec3 delta;
+			delta.m_x = position.m_x - p_position->m_x;
+			delta.m_y = position.m_y - p_position->m_y;
+			delta.m_z = position.m_z - p_position->m_z;
+			GolMath::NormalizeVector3(delta, &delta);
+
+			LegoFloat dot = p_direction->m_z;
+			dot *= delta.m_z;
+			LegoFloat yDot = p_direction->m_y;
+			yDot *= delta.m_y;
+			dot += yDot;
+			dot += delta.m_x * p_direction->m_x;
+			if (dot >= p_coneCosine) {
+				return &m_roster.m_racers[i];
+			}
+		}
+	}
+
+	return NULL;
+}
+
+// FUNCTION: LEGORACERS 0x0043c910
+Racer* RaceState::FindFarthestRacerInCone(
+	GolVec3* p_position,
+	GolVec3* p_direction,
+	LegoFloat p_minDistanceSquared,
+	LegoFloat p_maxDistanceSquared,
+	LegoFloat p_coneCosine
+)
+{
+	LegoFloat farthestDistanceSquared = 0.0f;
+	LegoS32 resultIndex = -1;
+
+	for (LegoS32 i = 0; i < static_cast<LegoS32>(m_roster.m_racerCount); i++) {
+		Racer* racer = &m_roster.m_racers[i];
+		CarVisuals* racerField = &racer->m_visuals;
+
+		GolVec3 position;
+		racerField->m_carEntity->GetPosition(&position);
+
+		LegoFloat distanceSquared = p_position->DistanceSquaredTo(position);
+		if (distanceSquared >= p_minDistanceSquared && distanceSquared <= p_maxDistanceSquared) {
+			GolVec3 delta;
+			delta.m_x = position.m_x - p_position->m_x;
+			delta.m_y = position.m_y - p_position->m_y;
+			delta.m_z = position.m_z - p_position->m_z;
+			GolMath::NormalizeVector3(delta, &delta);
+
+			LegoFloat dot = p_direction->m_z;
+			dot *= delta.m_z;
+			LegoFloat yDot = p_direction->m_y;
+			yDot *= delta.m_y;
+			dot += yDot;
+			dot += delta.m_x * p_direction->m_x;
+			if (dot >= p_coneCosine && distanceSquared > farthestDistanceSquared) {
+				resultIndex = i;
+				farthestDistanceSquared = distanceSquared;
+			}
+		}
+	}
+
+	if (resultIndex < 0) {
+		return NULL;
+	}
+
+	return &m_roster.m_racers[resultIndex];
+}
+
+// FUNCTION: LEGORACERS 0x0043ca60
+Racer* RaceState::FindNearestRacerInCone(
+	GolVec3* p_position,
+	GolVec3* p_direction,
+	LegoFloat p_minDistanceSquared,
+	LegoFloat p_maxDistanceSquared,
+	LegoFloat p_coneCosine
+)
+{
+	LegoFloat nearestDistanceSquared = FLT_MAX;
+	LegoS32 resultIndex = -1;
+
+	for (LegoS32 i = 0; i < static_cast<LegoS32>(m_roster.m_racerCount); i++) {
+		Racer* racer = &m_roster.m_racers[i];
+		CarVisuals* racerField = &racer->m_visuals;
+
+		GolVec3 position;
+		racerField->m_carEntity->GetPosition(&position);
+
+		LegoFloat distanceSquared = p_position->DistanceSquaredTo(position);
+		if (distanceSquared >= p_minDistanceSquared && distanceSquared <= p_maxDistanceSquared) {
+			GolVec3 delta;
+			delta.m_x = position.m_x - p_position->m_x;
+			delta.m_y = position.m_y - p_position->m_y;
+			delta.m_z = position.m_z - p_position->m_z;
+			GolMath::NormalizeVector3(delta, &delta);
+
+			LegoFloat dot = p_direction->m_z;
+			dot *= delta.m_z;
+			LegoFloat yDot = p_direction->m_y;
+			yDot *= delta.m_y;
+			dot += yDot;
+			dot += delta.m_x * p_direction->m_x;
+			if (dot >= p_coneCosine && distanceSquared < nearestDistanceSquared) {
+				resultIndex = i;
+				nearestDistanceSquared = distanceSquared;
+			}
+		}
+	}
+
+	if (resultIndex < 0) {
+		return NULL;
+	}
+
+	return &m_roster.m_racers[resultIndex];
+}
+
+// FUNCTION: LEGORACERS 0x0043cbb0
+Racer* RaceState::FindNearestRacerInRange(
+	GolVec3* p_position,
+	LegoFloat p_minDistanceSquared,
+	LegoFloat p_maxDistanceSquared
+)
+{
+	LegoFloat nearestDistanceSquared = FLT_MAX;
+	LegoS32 resultIndex = -1;
+
+	for (LegoS32 i = 0; i < static_cast<LegoS32>(m_roster.m_racerCount); i++) {
+		Racer* racer = &m_roster.m_racers[i];
+		CarVisuals* racerVisuals = &racer->m_visuals;
+
+		GolVec3 position;
+		racerVisuals->m_carEntity->GetPosition(&position);
+
+		LegoFloat deltaX = position.m_x - p_position->m_x;
+		LegoFloat deltaY = position.m_y - p_position->m_y;
+		LegoFloat deltaZ = position.m_z - p_position->m_z;
+		LegoFloat distanceSquared = deltaZ * deltaZ + deltaY * deltaY + deltaX * deltaX;
+		if (distanceSquared >= p_minDistanceSquared && distanceSquared <= p_maxDistanceSquared &&
+			distanceSquared < nearestDistanceSquared) {
+			resultIndex = i;
+			nearestDistanceSquared = distanceSquared;
+		}
+	}
+
+	if (resultIndex < 0) {
+		return NULL;
+	}
+
+	return &m_roster.m_racers[resultIndex];
+}
+
+// FUNCTION: LEGORACERS 0x0043ccb0
+void RaceState::StartRace()
+{
+	for (LegoU32 i = 0; i < m_roster.m_racerCount; i++) {
+		m_roster.m_racers[i].OnRaceStart();
+	}
+
+	SpatialSoundInstance* sound = m_roster.m_soundSource->AcquireSoundById(RaceRoster::c_soundProximity);
+	m_roster.m_proximitySound = sound;
+	if (sound) {
+		LegoFloat maxDistance = g_proximitySoundMaxDistance;
+		sound->m_minDistanceSquared = g_proximitySoundMinDistance * g_proximitySoundMinDistance;
+		sound->m_maxDistanceSquared = maxDistance * maxDistance;
+		m_roster.m_proximitySound->SetVolume(0.8f);
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043cd30
+void RaceState::DrawRacerEntities(GolRenderDevice* p_renderer, Racer* p_racer)
+{
+	for (LegoU32 i = 0; i < m_roster.m_racerCount; i++) {
+		if (p_racer != &m_roster.m_racers[i] || p_racer->m_cameraViewIndex != 3 ||
+			(p_racer->m_flags & Racer::c_flagFinished) || !(p_racer->m_flags & Racer::c_flagEngineSounds)) {
+			CarVisuals& visuals = m_roster.m_racers[i].m_visuals;
+			GolMatrix3 orientation = visuals.m_carEntity->GetOrientation();
+			if (visuals.IsMotorbike()) {
+				visuals.m_carEntity->CopyOrientationFrom(*visuals.m_bodyModelEntity);
+			}
+			visuals.m_entityGroup.Draw(*p_renderer);
+			if (visuals.IsMotorbike()) {
+				visuals.m_carEntity->SetOrientation(orientation);
+			}
+		}
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043cda0
+LegoU32 RaceState::GetTimeBehind(Racer* p_racer)
+{
+	TimeRaceManager* timeRaceManager = m_roster.m_timeRaceManager;
+	LegoU32 lapsCompleted = p_racer->m_lapsCompleted;
+
+	if (timeRaceManager) {
+		LegoU32 racerLapTime = 0;
+		LegoU32 recordLapTime = 0;
+		LegoU32 bestLapTime = 0;
+
+		for (LegoU32 i = 0; i < lapsCompleted; i++) {
+			racerLapTime += p_racer->m_lapTimes[i];
+		}
+
+		if (timeRaceManager->HasRecordRunLapTimes()) {
+			for (LegoU32 i = 0; i < lapsCompleted; i++) {
+				recordLapTime += timeRaceManager->GetRecordLapTimes()[i];
+			}
+		}
+
+		if (timeRaceManager->HasBestRunLapTimes()) {
+			for (LegoU32 i = 0; i < lapsCompleted; i++) {
+				bestLapTime += timeRaceManager->GetBestLapTimes()[i];
+			}
+		}
+
+		if ((bestLapTime != 0 && recordLapTime > bestLapTime) || recordLapTime == 0) {
+			recordLapTime = bestLapTime;
+		}
+
+		if (recordLapTime != 0 && recordLapTime < racerLapTime) {
+			return racerLapTime - recordLapTime;
+		}
+
+		return 0;
+	}
+
+	if (p_racer->m_standingsPosition == 1) {
+		return 0;
+	}
+
+	LegoS32 result = 0;
+	LegoU32 lapCount = m_setup.m_lapCount;
+	if (lapsCompleted > lapCount) {
+		lapsCompleted = lapCount;
+	}
+
+	for (LegoU32 racerIndex = 0; racerIndex < m_roster.m_racerCount; racerIndex++) {
+		if (&m_roster.m_racers[racerIndex] == p_racer) {
+			continue;
+		}
+
+		LegoU32 otherLapsCompleted = m_roster.m_racers[racerIndex].m_lapsCompleted;
+		if (otherLapsCompleted > lapCount) {
+			otherLapsCompleted = lapCount;
+		}
+
+		if (lapsCompleted <= otherLapsCompleted) {
+			LegoS32 delta = 0;
+			for (LegoU32 completedLapIndex = 0; completedLapIndex < lapsCompleted; completedLapIndex++) {
+				delta += static_cast<LegoS32>(p_racer->m_lapTimes[completedLapIndex]) -
+						 static_cast<LegoS32>(m_roster.m_racers[racerIndex].m_lapTimes[completedLapIndex]);
+			}
+
+			for (LegoU32 remainingLapIndex = lapsCompleted; otherLapsCompleted > remainingLapIndex;
+				 remainingLapIndex++) {
+				delta += static_cast<LegoS32>(m_roster.m_racers[racerIndex].m_lapTimes[remainingLapIndex]);
+			}
+
+			if (delta > result) {
+				result = delta;
+			}
+		}
+	}
+
+	return result;
+}
+
+// FUNCTION: LEGORACERS 0x0043cf30
+void RaceState::ComputeStandingsDeltas(Racer* p_racer, Racer::StandingsDeltaEntry* p_entries)
+{
+	LegoS32 racerTime = 0;
+
+	if (p_racer->m_lapsCompleted < m_setup.m_lapCount) {
+		for (LegoU32 racerIndex = 0; racerIndex < m_roster.m_racerCount; racerIndex++) {
+			p_entries[racerIndex].m_racer = NULL;
+			p_entries[racerIndex].m_delta = 0;
+			p_entries[racerIndex].m_isValid = FALSE;
+		}
+
+		return;
+	}
+
+	LegoU32 lapCount = m_setup.m_lapCount;
+
+	if (lapCount > 0) {
+		LegoU32* lapTime = p_racer->m_lapTimes;
+
+		do {
+			racerTime += *lapTime++;
+		} while (--lapCount);
+	}
+
+	for (LegoU32 racerIndex = 0; racerIndex < m_roster.m_racerCount; racerIndex++) {
+		p_entries[racerIndex].m_racer = &m_roster.m_racers[racerIndex];
+		p_entries[racerIndex].m_isValid = TRUE;
+
+		if (&m_roster.m_racers[racerIndex] == p_racer) {
+			p_entries[racerIndex].m_delta = 0;
+		}
+		else if (m_roster.m_racers[racerIndex].m_lapsCompleted < m_setup.m_lapCount) {
+			p_entries[racerIndex].m_delta = m_roster.m_racers[racerIndex].m_standingsPosition + 2147483641;
+		}
+		else {
+			LegoS32 otherTime = 0;
+			LegoU32 remaining = m_setup.m_lapCount;
+
+			if (remaining > 0) {
+				LegoU32* lapTime = m_roster.m_racers[racerIndex].m_lapTimes;
+
+				do {
+					otherTime += *lapTime++;
+				} while (--remaining);
+			}
+
+			p_entries[racerIndex].m_delta = otherTime - racerTime;
+		}
+	}
+
+	for (LegoU32 i = m_roster.m_racerCount; i < 6; i++) {
+		p_entries[i].m_isValid = FALSE;
+	}
+}
+
+// FUNCTION: LEGORACERS 0x0043d070
+RaceRouteRecord* RaceState::FindNearestRouteRecord(Racer* p_racer)
+{
+	RaceRouteRecord* result = NULL;
+	LegoFloat nearestDistanceSquared = FLT_MAX;
+
+	GolVec3 racerPosition;
+	p_racer->m_visuals.m_carEntity->GetPosition(&racerPosition);
+
+	RaceRouteRecord* entry = m_roster.m_routeRecords;
+	for (LegoS32 i = 6; i; i--) {
+		if (entry->m_pathPoints) {
+			GolVec3 position = entry->m_loopPosition;
+			LegoFloat deltaX = position.m_x - racerPosition.m_x;
+			LegoFloat deltaY = position.m_y - racerPosition.m_y;
+			LegoFloat deltaZ = position.m_z - racerPosition.m_z;
+			LegoFloat distanceSquared = deltaZ * deltaZ + deltaY * deltaY + deltaX * deltaX;
+
+			if (distanceSquared < nearestDistanceSquared) {
+				nearestDistanceSquared = distanceSquared;
+				result = entry;
+			}
+		}
+
+		entry++;
+	}
+
+	return result;
+}
+
+// FUNCTION: LEGORACERS 0x0043d120
+void RaceState::StopProximitySound()
+{
+	SpatialSoundInstance* resource = m_roster.m_proximitySound;
+	if (resource) {
+		m_roster.m_soundSource->ReleaseSound(resource);
+		m_roster.m_proximitySound = NULL;
+	}
+}
