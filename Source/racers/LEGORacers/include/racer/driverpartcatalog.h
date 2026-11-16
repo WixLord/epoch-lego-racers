@@ -87,9 +87,18 @@ private:
 	GolName m_hatNames[40];               // 0x018
 	undefined m_hatUnlockFlags[40];       // 0x158
 	LegoChar m_faceDirectory[8];          // 0x180
+	// Remaster: append new faces without replacing the original 30 save indices.
+#ifdef COMPAT_MODE
+	LegoChar m_faceNames[32][4];          // Original: 0x188
+#else
 	LegoChar m_faceNames[30][4];          // 0x188
+#endif
 	LegoChar m_faceExpressions[6][6];     // 0x200
+#ifdef COMPAT_MODE
+	undefined m_faceUnlockFlags[32];      // Original: 0x224
+#else
 	undefined m_faceUnlockFlags[30];      // 0x224
+#endif
 	GolName m_torsoVariantDirs[2];        // 0x242
 	GolName m_torsoNames[30];             // 0x252
 	undefined m_unk0x342[0x344 - 0x342];  // 0x342

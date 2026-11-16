@@ -6,13 +6,13 @@ import zipfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
-output = root / "Distribution/artifacts/online-v0.1.3"
+output = root / "Distribution/artifacts/online-v0.1.4"
 output.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(root / "Distribution/artifacts/lego-racers-remaster.zip") as source:
     files = {name: source.read(name) for name in source.namelist()}
 manifest = json.loads(files["manifest.json"])
-assert manifest["gameId"] == "lego-racers" and manifest["version"] == "v0.1.6"
-manifest.update(gameId="lego-racers-online", version="online-v0.1.3", executable="EpochOnline.exe", arguments=["--lobby"])
+assert manifest["gameId"] == "lego-racers" and manifest["version"] == "v0.1.7"
+manifest.update(gameId="lego-racers-online", version="online-v0.1.4", executable="EpochOnline.exe", arguments=["--lobby"])
 for name, path in {
     "RacersReborn.exe": root / "Build/racers/Release/RacersReborn.exe",
     "EpochOnline.exe": root / "Build/online/Release/EpochOnline.exe",
@@ -70,6 +70,10 @@ with zipfile.ZipFile(output / "online-corresponding-source.zip", "w", zipfile.ZI
         if path.is_file() and path.suffix in {".cpp", ".py", ".txt"}:
             target.write(path, "Distribution/Online/" + path.name)
     target.write(Path(__file__), "Distribution/Packaging/build_online_package.py")
+    for name in ["Paint-SpiderMan.jsx", "Export-PaintCommands.cjs", "Render-PixelPaint.ps1", "Build-SpiderManParts.ps1", "PackedBitmap.cs", "BinaryTokens.cs", "JamArchive.cs", "Read-JamArchive.ps1"]:
+        target.write(root / "Tools" / name, "Tools/" + name)
+    for name in ["README.md", "mask.png", "torso-front.png", "torso-game.png", "mask.json", "torso-front.json"]:
+        target.write(root / "Assets/SpiderMan" / name, "Assets/SpiderMan/" + name)
     target.writestr("BUILD.txt", """Engine: Visual Studio 2022, CMake, Win32.
 cmake -S Source/racers -B Build/racers -G "Visual Studio 17 2022" -A Win32 -DRACERS_DECOMP_ASSERT=OFF -DCMAKE_EXE_LINKER_FLAGS=/SAFESEH:NO -DCMAKE_SHARED_LINKER_FLAGS=/SAFESEH:NO
 cmake --build Build/racers --config Release
