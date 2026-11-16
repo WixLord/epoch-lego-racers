@@ -31,6 +31,11 @@ try:
     launch(0)
     wait_for(lambda: "ROOM " in logs[0].read_text(errors="replace"))
     code = next(line.split()[1] for line in logs[0].read_text().splitlines() if line.startswith("ROOM "))
+    wait_for(lambda: '"canReady":true' in logs[0].read_text(errors="replace"))
+    processes[0].stdin.write(b"r\n"); processes[0].stdin.flush()
+    wait_for(lambda: '"ready":true' in logs[0].read_text(errors="replace"))
+    assert '"canStart":true' not in logs[0].read_text(errors="replace")
+    print("PASS: lone host can ready up; starting alone remains disabled")
     for index in range(1, 6):
         launch(index, code)
     wait_for(lambda: all(path.read_text(errors="replace").count("CONNECTED relay") == 5 for path in logs))

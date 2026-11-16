@@ -332,7 +332,8 @@ int main(int argc, char** argv)
             bool ownReady = false;
             for (const auto& member : room.at("members"))
                 if (member.at("id") == lobby.id) ownReady = member.value("ready", false);
-            Json state = {{"ready", ownReady}, {"canReady", connected && currentStatus == "lobby"},
+            bool canReady = participating && currentStatus == "lobby" && (ids.size() == 1 || connected);
+            Json state = {{"ready", ownReady}, {"canReady", canReady},
                 {"canStart", hosting && connected && currentStatus == "lobby" &&
                     std::all_of(room.at("members").begin(), room.at("members").end(),
                         [](const Json& m) { return m.value("waiting", false) || m.value("ready", false); })}};
@@ -359,7 +360,7 @@ int main(int argc, char** argv)
                         std::string command = discardInput ? "" : inputLine;
                         inputLine.clear(); discardInput = false;
                         if (command == "q" || command == "Q") { quit = true; break; }
-                        if ((command == "r" || command == "u") && connected && currentStatus == "lobby")
+                        if ((command == "r" || command == "u") && canReady)
                             lobby.Queue("ready", {{"ready", command == "r"}});
                         if (command == "s" && hosting && connected) lobby.Queue("start");
                         if (command.rfind("chat ", 0) == 0) {
