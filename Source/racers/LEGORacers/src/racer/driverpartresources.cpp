@@ -52,6 +52,7 @@ LegoS32 DriverPartResources::Reset()
 	m_partCatalog = NULL;
 	m_hatModel = NULL;
 	m_standingBodyModel = NULL;
+	::memset(m_accessoryBodyModels, 0, sizeof(m_accessoryBodyModels));
 	m_materialList = NULL;
 	m_textureList = NULL;
 	m_maxBodyIndexCount = 0;
@@ -80,7 +81,7 @@ GolWorldDatabase* DriverPartResources::Load(const LoadParams* p_params, LegoS32 
 	NormalizeHeadGroupOrder();
 
 	m_hatModel = m_golExport->CreateModel();
-	m_hatModel->Allocate(m_renderer, 2, 600, 300, 100, 3);
+	m_hatModel->Allocate(m_renderer, 2, 900, 600, 100, 3);
 
 	ComputeMaxVertexCounts();
 	ComputeMaxIndexCounts();
@@ -94,6 +95,12 @@ LegoBool32 DriverPartResources::ReleaseResources()
 {
 	if (m_partResource == NULL) {
 		return TRUE;
+	}
+
+	for (LegoS32 i = 0; i < 6; i++) {
+		if (m_accessoryBodyModels[i] != NULL) {
+			m_golExport->DestroyModel(m_accessoryBodyModels[i]);
+		}
 	}
 
 	if (m_standingBodyModel != NULL) {
@@ -138,6 +145,15 @@ void DriverPartResources::LoadPartResource(LegoBool32 p_binary)
 		GOL_FATALERROR(c_golErrorOutOfMemory);
 	}
 	m_standingBodyModel->Load(m_renderer, "bikeman", p_binary);
+	const LegoChar* accessoryNames[] = {"crr", "chr", "crp", "chp", "cleg_box", "cbikeman"};
+	for (LegoS32 i = 0; i < 6; i++) {
+		// Race resources only have the common body and standing rider.
+		if (m_resourceIndex == 1 && i < 4) {
+			continue;
+		}
+		m_accessoryBodyModels[i] = m_golExport->CreateModel();
+		m_accessoryBodyModels[i]->Load(m_renderer, accessoryNames[i], p_binary);
+	}
 
 	fileName[::strlen(fileName) - 3] = 'g';
 	fileName[::strlen(fileName) - 2] = 'c';
@@ -390,4 +406,10 @@ GolMaterial* DriverPartResources::FindLegMaterial(LegoS32 p_index)
 	GolName materialName;
 	m_partCatalog->CopyLegName(p_index, unusedName, materialName);
 	return m_renderer->FindMaterialByName(materialName);
+}
+
+// Remaster: accessory variants use the original body's skeleton and material slots.
+GolModelBase* DriverPartResources::GetAccessoryBodyModel(LegoS32 p_index, LegoBool32 p_standing) const
+{
+	return m_accessoryBodyModels[p_standing ? 5 : (m_resourceIndex == 1 ? 4 : p_index)];
 }

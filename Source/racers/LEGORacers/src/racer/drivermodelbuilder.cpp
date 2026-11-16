@@ -274,9 +274,9 @@ GolModelBase* DriverModelBuilder::CreateOutputModel(LegoU16 p_vertexType)
 		GOL_FATALERROR(c_golErrorOutOfMemory);
 	}
 
-	LegoS32 indexCount = m_headSummary.m_indexCount + m_bodySummary.m_indexCount + 9;
-	LegoS32 vertexCount = m_headSummary.m_vertexCount + m_bodySummary.m_vertexCount + 9;
-	LegoS32 groupCount = m_headSummary.m_groupCount + m_bodySummary.m_groupCount + 9;
+	LegoS32 indexCount = m_headSummary.m_indexCount + m_bodySummary.m_indexCount + 25;
+	LegoS32 vertexCount = m_headSummary.m_vertexCount + m_bodySummary.m_vertexCount + 57;
+	LegoS32 groupCount = m_headSummary.m_groupCount + m_bodySummary.m_groupCount + 73;
 	LegoS32 materialCount = m_headSummary.m_materialCount + m_bodySummary.m_materialCount + 2;
 
 	GdbVertexArray* vertexArray;
@@ -458,8 +458,15 @@ GolModelBase* DriverModelBuilder::BuildDriverModel(
 	DriverPartCatalog* partCatalog = m_partResources->GetPartCatalog();
 	LegoS32 torsoLegIndex = 2 * partCatalog->GetLegVariant(p_cosmetics->m_legIndex) +
 							partCatalog->GetTorsoVariant(p_cosmetics->m_torsoIndex);
-	GolModelBase* torsoLegModel = p_standing ? m_partResources->GetStandingBodyModel() :
-		m_partResources->GetBodyModel(torsoLegIndex);
+	GolModelBase* torsoLegModel =
+		p_standing ? m_partResources->GetStandingBodyModel() : m_partResources->GetBodyModel(torsoLegIndex);
+	// Remaster: the accessory follows the torso selection independently of headgear.
+	GolName directory;
+	GolName torso;
+	partCatalog->CopyTorsoName(p_cosmetics->m_torsoIndex, directory, torso);
+	if (::strcmp(torso, "bt_chst") == 0) {
+		torsoLegModel = m_partResources->GetAccessoryBodyModel(torsoLegIndex, p_standing);
+	}
 	GolModelBase* headModel = m_partResources->LoadHatModel(p_cosmetics->m_hatIndex);
 
 	SummarizeModel(torsoLegModel, &m_bodySummary);

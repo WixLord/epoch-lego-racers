@@ -78,32 +78,50 @@ public:
 	const LegoChar* GetBodyModelDirectory(LegoS32 p_index) const { return m_modelDirectories[p_index]; }
 
 private:
-	LegoBool32 m_loaded;                  // 0x000
-	LegoS32 m_hatCount;                   // 0x004
-	LegoS32 m_faceCount;                  // 0x008
-	LegoS32 m_torsoCount;                 // 0x00c
-	LegoS32 m_legCount;                   // 0x010
-	LegoS32 m_bodyModelNameCount;         // 0x014
-	GolName m_hatNames[40];               // 0x018
-	undefined m_hatUnlockFlags[40];       // 0x158
-	LegoChar m_faceDirectory[8];          // 0x180
-	// Remaster: append new faces without replacing the original 30 save indices.
+	LegoBool32 m_loaded;            // 0x000
+	LegoS32 m_hatCount;             // 0x004
+	LegoS32 m_faceCount;            // 0x008
+	LegoS32 m_torsoCount;           // 0x00c
+	LegoS32 m_legCount;             // 0x010
+	LegoS32 m_bodyModelNameCount;   // 0x014
+	GolName m_hatNames[40];         // 0x018
+	undefined m_hatUnlockFlags[40]; // 0x158
+	LegoChar m_faceDirectory[8];    // 0x180
+									// Remaster: append new faces without replacing the original 30 save indices.
 #ifdef COMPAT_MODE
-	LegoChar m_faceNames[32][4];          // Original: 0x188
+	LegoChar m_faceNames[32][4]; // Original: 0x188
 #else
-	LegoChar m_faceNames[30][4];          // 0x188
+	LegoChar m_faceNames[30][4]; // 0x188
 #endif
-	LegoChar m_faceExpressions[6][6];     // 0x200
+	LegoChar m_faceExpressions[6][6]; // 0x200
 #ifdef COMPAT_MODE
-	undefined m_faceUnlockFlags[32];      // Original: 0x224
+	undefined m_faceUnlockFlags[32]; // Original: 0x224
 #else
-	undefined m_faceUnlockFlags[30];      // 0x224
+	undefined m_faceUnlockFlags[30]; // 0x224
 #endif
-	GolName m_torsoVariantDirs[2];        // 0x242
-	GolName m_torsoNames[30];             // 0x252
-	undefined m_unk0x342[0x344 - 0x342];  // 0x342
-	undefined4 m_torsoVariants[30];       // 0x344
-	undefined m_torsoUnlockFlags[30];     // 0x3bc
+	GolName m_torsoVariantDirs[2]; // 0x242
+
+#ifdef COMPAT_MODE
+	GolName m_torsoNames[32];
+#else
+	GolName m_torsoNames[30];
+#endif
+	// Original field             // 0x252
+	undefined m_unk0x342[0x344 - 0x342]; // 0x342
+
+#ifdef COMPAT_MODE
+	undefined4 m_torsoVariants[32];
+#else
+	undefined4 m_torsoVariants[30];
+#endif
+	// Original field       // 0x344
+
+#ifdef COMPAT_MODE
+	undefined m_torsoUnlockFlags[32];
+#else
+	undefined m_torsoUnlockFlags[30];
+#endif
+	// Original field     // 0x3bc
 	GolName m_legVariantDirs[2];          // 0x3da
 	GolName m_legNames[30];               // 0x3ea
 	undefined m_unk0x4da[0x4dc - 0x4da];  // 0x4da

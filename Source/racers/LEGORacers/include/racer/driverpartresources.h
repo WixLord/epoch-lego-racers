@@ -43,14 +43,15 @@ public:
 	GolMaterial* FindLegMaterial(LegoS32 p_index);
 	GdbPartLibrary* GetPartLibrary() { return &m_partLibrary; }
 	DriverPartCatalog* GetPartCatalog() const { return m_partCatalog; }
-	LegoS32 GetMaxBodyIndexCount() const { return m_maxBodyIndexCount; }
+	LegoS32 GetMaxBodyIndexCount() const { return m_maxBodyIndexCount + 14; }
 	LegoS32 GetMaxHatIndexCount() const { return m_maxHatIndexCount; }
-	LegoS32 GetMaxBodyVertexCount() const { return m_maxBodyVertexCount; }
+	LegoS32 GetMaxBodyVertexCount() const { return m_maxBodyVertexCount + 42; }
 	LegoS32 GetMaxHatVertexCount() const { return m_maxHatVertexCount; }
-	LegoS32 GetMaxBodyGroupCount() const { return m_maxBodyGroupCount; }
+	LegoS32 GetMaxBodyGroupCount() const { return m_maxBodyGroupCount + 60; }
 	LegoS32 GetMaxHatGroupCount() const { return m_maxHatGroupCount; }
 	LegoS32 GetMaxBodyMaterialCount() const { return m_maxBodyMaterialCount; }
 	LegoS32 GetMaxHatMaterialCount() const { return m_maxHatMaterialCount; }
+	GolModelBase* GetAccessoryBodyModel(LegoS32 p_index, LegoBool32 p_standing) const;
 	GolModelBase* GetStandingBodyModel() const { return m_standingBodyModel; }
 	void SetResourceIndex(LegoS32 p_resourceIndex) { m_resourceIndex = p_resourceIndex; }
 
@@ -65,25 +66,26 @@ private:
 	void ComputeMaxGroupCounts();
 	void ComputeMaxMaterialCounts();
 
-	GdbPartLibrary m_partLibrary;       // 0x00
-	GolD3DRenderDevice* m_renderer;     // 0x1c
-	GolExport* m_golExport;             // 0x20
-	GolWorldDatabase* m_partResource;   // 0x24
-	GolModelBase* m_hatModel;           // 0x28
-	LegoBool32 m_textureBinaryMode;     // 0x2c
-	GolMaterialLibrary* m_materialList; // 0x30
-	GolTextureList* m_textureList;      // 0x34
-	DriverPartCatalog* m_partCatalog;   // 0x38
-	LegoS32 m_maxBodyIndexCount;        // 0x3c
-	LegoS32 m_maxHatIndexCount;         // 0x40
-	LegoS32 m_maxBodyVertexCount;       // 0x44
-	LegoS32 m_maxHatVertexCount;        // 0x48
-	LegoS32 m_maxBodyGroupCount;        // 0x4c
-	LegoS32 m_maxHatGroupCount;         // 0x50
-	LegoS32 m_maxBodyMaterialCount;     // 0x54
-	LegoS32 m_maxHatMaterialCount;      // 0x58
-	GolModelBase* m_standingBodyModel; // Remaster standing bike rider
-	LegoS32 m_resourceIndex;            // 0x5c
+	GdbPartLibrary m_partLibrary;           // 0x00
+	GolD3DRenderDevice* m_renderer;         // 0x1c
+	GolExport* m_golExport;                 // 0x20
+	GolWorldDatabase* m_partResource;       // 0x24
+	GolModelBase* m_hatModel;               // 0x28
+	LegoBool32 m_textureBinaryMode;         // 0x2c
+	GolMaterialLibrary* m_materialList;     // 0x30
+	GolTextureList* m_textureList;          // 0x34
+	DriverPartCatalog* m_partCatalog;       // 0x38
+	LegoS32 m_maxBodyIndexCount;            // 0x3c
+	LegoS32 m_maxHatIndexCount;             // 0x40
+	LegoS32 m_maxBodyVertexCount;           // 0x44
+	LegoS32 m_maxHatVertexCount;            // 0x48
+	LegoS32 m_maxBodyGroupCount;            // 0x4c
+	LegoS32 m_maxHatGroupCount;             // 0x50
+	LegoS32 m_maxBodyMaterialCount;         // 0x54
+	LegoS32 m_maxHatMaterialCount;          // 0x58
+	GolModelBase* m_accessoryBodyModels[6]; // Remaster torso-bound cape variants
+	GolModelBase* m_standingBodyModel;      // Remaster standing bike rider
+	LegoS32 m_resourceIndex;                // 0x5c
 };
 
 #endif // DRIVERPARTRESOURCES_H

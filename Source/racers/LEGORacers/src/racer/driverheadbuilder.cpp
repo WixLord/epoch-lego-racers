@@ -112,7 +112,7 @@ void DriverHeadBuilder::CreateHatModels()
 			GOL_FATALERROR(c_golErrorOutOfMemory);
 		}
 
-		m_hatModels[i]->Allocate(m_renderer, 2, 0x258, 0x12c, 0x64, 3);
+		m_hatModels[i]->Allocate(m_renderer, 2, 900, 600, 0x64, 3);
 	}
 
 	::memset(m_hatModelUsed, 0, sizeof(m_hatModelUsed));
@@ -171,6 +171,10 @@ GolModelBase* DriverHeadBuilder::GetTorsoModel(LegoS32 p_index)
 	GolName modelName;
 	GolName materialName;
 	m_partCatalog->CopyTorsoName(p_index, modelName, materialName);
+	// The Batman torso carries its cape in the part-selection preview too.
+	if (::strcmp(materialName, "bt_chst") == 0) {
+		::strcpy(modelName, "cchests");
+	}
 
 	GolWorldDatabase* db = m_worldDatabase;
 	GolModelEntity* entity;

@@ -94,7 +94,7 @@ def mesh(name):
     return faces, scale
 
 
-def write_mesh(name, faces, scale, colored=False):
+def write_mesh(name, faces, scale, colored=False, rigid=False):
     materials = list(dict.fromkeys(m for m, _ in faces))
     # The runtime's expression controller reserves material zero for the face.
     if 'face' in materials:
@@ -108,7 +108,8 @@ def write_mesh(name, faces, scale, colored=False):
             last_mat = material
         for j, (v, node) in enumerate(corners):
             verts.extend((4 if colored and k >= 5 else 3, value) for k, value in enumerate(v))
-            groups.append([(50, None), (4, node)])
+            if not rigid:
+                groups.append([(50, None), (4, node)])
             groups.append([(49, None), (4, j), (4, i * 3 + j), (4, 1)])
         groups.append([(45, None), (4, i), (4, 1)])
         triangles.extend([(4, 0), (4, 1), (4, 2)])
