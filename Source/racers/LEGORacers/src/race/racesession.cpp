@@ -1,3 +1,4 @@
+#include "race/onlinerace.h"
 #include "race/racesession.h"
 
 #include "app/golapp.h"
@@ -487,6 +488,7 @@ void RaceSession::Run()
 // FUNCTION: LEGORACERS 0x00432790
 void RaceSession::Shutdown()
 {
+	OnlineRace::Close();
 	DestroyRouteRecords();
 	DestroyInput();
 	DestroyRaceContent();
@@ -1068,6 +1070,7 @@ void RaceSession::LoadRaceContent(LegoBool32 p_mirror)
 	}
 
 	m_raceState.CreateRacers(&racerParams, &racerContext, m_context->m_useBinaryFiles);
+	OnlineRace::Attach(&m_raceState);
 
 	if (p_mirror) {
 		m_raceState.SetRubberBandBoost(g_mirroredRaceStateRouteScale);
@@ -1699,6 +1702,7 @@ void RaceSession::PlayIntroMusic()
 // FUNCTION: LEGORACERS 0x004349a0
 void RaceSession::UpdateIntroState()
 {
+	if (!OnlineRace::Ready()) { m_elapsedMs = 0; return; }
 	if (m_trackCamera && m_cameras[0] && m_cameras[0]->m_trackedEntity &&
 		m_cameras[0]->m_trackedEntity->IsPartAnimationDone()) {
 		GolVec3 position;
@@ -2032,6 +2036,7 @@ void RaceSession::UpdateHuds()
 // FUNCTION: LEGORACERS 0x00435220
 void RaceSession::Update()
 {
+	OnlineRace::Update();
 	LegoU32 elapsedMs = m_golApp->GetFrameDeltaMs();
 	if (m_context->m_cheatFlags & c_cheatFastForward) {
 		elapsedMs = static_cast<LegoU32>(
@@ -2402,6 +2407,7 @@ void RaceSession::DrawTransparent()
 // FUNCTION: LEGORACERS 0x00435a90
 void RaceSession::DrawHuds()
 {
+	OnlineRace::DrawNames(m_cameras[0], m_loadingFont, m_renderer);
 	for (LegoS32 i = 0; i < sizeOfArray(m_huds); i++) {
 		m_huds[i].Draw();
 	}

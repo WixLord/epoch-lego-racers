@@ -418,6 +418,7 @@ add_executable(legoracers WIN32
   LEGORacers/src/race/playercontrols.cpp
   LEGORacers/src/race/powerups/powerupprojectile.cpp
   LEGORacers/src/race/racesession.cpp
+  LEGORacers/src/race/onlinerace.cpp
   LEGORacers/src/race/data/racenamelist.cpp
   LEGORacers/src/race/racer/racer.cpp
   LEGORacers/src/race/racesetup.cpp
@@ -654,6 +655,7 @@ target_include_directories(legoracers PRIVATE
 )
 
 target_link_libraries(legoracers PRIVATE
+  ws2_32
   dinput
   dsound
   ole32

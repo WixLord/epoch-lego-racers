@@ -1,3 +1,4 @@
+#include "race/onlinerace.h"
 #include "audio/soundnode.h"
 #include "audio/spatialsoundinstance.h"
 #include "camera/golcamera.h"
@@ -714,6 +715,20 @@ void CarVisuals::SnapVisuals()
 // FUNCTION: LEGORACERS 0x0043e740
 void CarVisuals::UpdateBodyLean(LegoS32 p_elapsedMs)
 {
+	if (OnlineRace::IsRemote(m_racer)) {
+		// The received orientation already contains the sender's visual lean.
+		m_carEntity->Update(p_elapsedMs);
+		m_carEntity->CopyOrientationAndPositionTo(m_bodyModelEntity);
+		if (m_secondaryEntity != NULL) {
+			m_bodyModelEntity->CopyOrientationAndPositionTo(m_secondaryEntity);
+			m_secondaryEntity->Update(p_elapsedMs);
+		}
+		GolVec3 position;
+		m_bodyModelEntity->LocalToWorld(m_driverMountOffset, &position);
+		m_driverEntity->SetPosition(position);
+		m_driverEntity->CopyOrientationFrom2(*m_bodyModelEntity);
+		return;
+	}
 	// Opt-in, bounded handling trace for the motorcycle integration preview.
 	static const bool traceEnabled = getenv("REBORN_BIKE_TRACE") != NULL;
 	static unsigned traceElapsed = 0, traceNext = 0;
@@ -884,7 +899,7 @@ void CarVisuals::UpdateBodyLean(LegoS32 p_elapsedMs)
 		GolCameraBase::Add(&targetRow1, &oldRow1, &row1);
 	}
 
-	if (m_isMotorbike) {
+	if (m_isMotorbike && !OnlineRace::IsRemote(m_racer)) {
 		// Visual banking only: retain the original stable arcade suspension.
 		LegoFloat radius = m_racer->m_driveController.m_turnRadius;
 		LegoFloat speed = m_racerPhysics->m_speed;

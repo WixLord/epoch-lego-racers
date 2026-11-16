@@ -394,8 +394,10 @@ void GolRenderTarget::UnlockAuxPixels()
 // FUNCTION: GOLDP 0x10003a80
 void GolRenderTarget::Present(undefined4 p_wait)
 {
-    GolD3DRenderDevice* renderer = &static_cast<GolDrawDPState*>(m_drawState)->m_renderer;
-    if (renderer && renderer->PresentNative(this)) return;
+	GolD3DRenderDevice* renderer = &static_cast<GolDrawDPState*>(m_drawState)->m_renderer;
+	if (renderer && renderer->PresentNative(this)) {
+		return;
+	}
 	RECT destRect;
 
 	if (m_surfaceFlags & 1) {

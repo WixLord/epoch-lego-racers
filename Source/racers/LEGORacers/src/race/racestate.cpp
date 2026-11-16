@@ -12,6 +12,7 @@
 #include "material/goltexturelist.h"
 #include "menu/runtime/cutsceneparticle.h"
 #include "menu/runtime/cutsceneplayer.h"
+#include "race/onlinerace.h"
 #include "race/racecameracontroller.h"
 #include "race/raceeventtable.h"
 #include "race/raceforcefeedback.h"
@@ -411,6 +412,9 @@ void RaceState::CreateRacer(
 		m_roster.m_placementSlots[0] = 2;
 	}
 
+	if (OnlineRace::Active()) {
+		m_roster.m_placementSlots[p_racerIndex] = OnlineRace::GridSlot(p_racerIndex);
+	}
 	LegoU32 placementIndex = m_roster.m_placementSlots[p_racerIndex];
 	initParams.m_carEntity->SetPosition(m_roster.m_startPositions[placementIndex]);
 	placementIndex = m_roster.m_placementSlots[p_racerIndex];
@@ -447,6 +451,10 @@ void RaceState::CreateRacer(
 	descriptor.m_hitThreshold = 0;
 	descriptor.m_data = &racer->m_physics;
 	m_roster.m_racerEvents[p_racerIndex] = m_roster.AllocateEvent(racer, &descriptor);
+	// Remote simulation is visual only until network collision handling is implemented.
+	if (OnlineRace::Active() && m_roster.m_racerEvents[p_racerIndex]) {
+		m_roster.m_racerEvents[p_racerIndex]->m_active = 0;
+	}
 }
 
 // FUNCTION: LEGORACERS 0x0043bc10
@@ -602,6 +610,9 @@ void RaceState::UpdateRacers(LegoU32 p_elapsedMs)
 	Racer* end = racer + m_roster.m_racerCount;
 
 	for (; racer < end; racer++) {
+		if (OnlineRace::IsRemote(racer)) {
+			continue;
+		}
 		if (racer->m_driveController.m_flags & DriveController::c_flagBrakeToStop) {
 			racer->m_driveController.UpdateBrakeToStop(p_elapsedMs);
 		}
@@ -616,10 +627,16 @@ void RaceState::UpdateRacers(LegoU32 p_elapsedMs)
 	}
 
 	for (racer = m_roster.m_racers; racer < end; racer++) {
+		if (OnlineRace::IsRemote(racer)) {
+			continue;
+		}
 		racer->m_physics.Update(p_elapsedMs);
 	}
 
 	for (racer = m_roster.m_racers; racer < end; racer++) {
+		if (OnlineRace::IsRemote(racer)) {
+			continue;
+		}
 		if (racer->m_flags & Racer::c_flagDrifting) {
 			racer->UpdateDriftLean();
 		}
@@ -633,11 +650,17 @@ void RaceState::UpdateRacers(LegoU32 p_elapsedMs)
 	}
 
 	for (racer = m_roster.m_racers; racer < end; racer++) {
+		if (OnlineRace::IsRemote(racer)) {
+			continue;
+		}
 		racer->UpdateEngineSound(p_elapsedMs);
 		racer->UpdateSpatialSounds();
 	}
 
 	for (racer = m_roster.m_racers; racer < end; racer++) {
+		if (OnlineRace::IsRemote(racer)) {
+			continue;
+		}
 		racer->UpdateTimers(p_elapsedMs);
 	}
 

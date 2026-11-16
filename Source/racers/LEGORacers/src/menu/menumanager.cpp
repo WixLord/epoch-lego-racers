@@ -25,6 +25,7 @@
 #include "material/goltexturelist.h"
 #include "menu/menuscreenid.h"
 #include "menu/screens/menugamescreen.h"
+#include "race/onlinerace.h"
 #include "race/racemoderunner.h"
 #include "render/golcommondrawstate.h"
 #include "render/goldrawstate.h"
@@ -869,6 +870,77 @@ void MenuManager::PrepareRaceContext()
 
 		slot++;
 		recordState++;
+	}
+
+	if (OnlineRace::Requested() && selectedRecords.GetSelectedRecordCount() == 1) {
+		unsigned char remoteBuilds[5][0x22d];
+		SetWindowText(context->m_golApp->GetHwnd(), "Epoch online: waiting for friend (Escape cancels)");
+		if (!OnlineRace::ExchangeBuilds(selectedRecords.GetSelectedRecord(0)->m_data, remoteBuilds)) {
+			MessageBox(context->m_golApp->GetHwnd(), OnlineRace::Error(), "Online prototype", MB_OK);
+			context->m_running = FALSE;
+			return;
+		}
+		for (unsigned remoteIndex = 1; remoteIndex < OnlineRace::Count(); ++remoteIndex) {
+			SaveRecordList::Record remoteRecord;
+			memcpy(remoteRecord.m_data, remoteBuilds[remoteIndex - 1], 0x22d);
+			LegoRacers::Context::PlayerSetupSlot* remoteSlot = &context->m_playerSetupSlots[remoteIndex];
+			// Network records must be checked against this installation's actual catalogs
+			// before the legacy model builder uses any indexes or names.
+			const LegoU8* received = remoteRecord.m_data;
+			DriverPartCatalog& catalog = m_gameContext.m_partCatalog;
+			LegoBool32 valid = received[0x1c] < catalog.GetFaceCount() && received[0x1d] < catalog.GetHatCount() &&
+							   received[0x1e] < catalog.GetLegCount() && received[0x1f] < catalog.GetTorsoCount() &&
+							   (received[0x20] & 0x7f) < 6;
+			ChassisModelTable chassisCatalog;
+			ChassisModelTable::Params chassisParams = {};
+			chassisParams.m_golExport = context->m_golApp->GetGolExport();
+			chassisParams.m_renderer = m_renderer;
+			chassisParams.m_filename = "chassis.cmf";
+			chassisParams.m_binary = context->m_useBinaryFiles;
+			chassisParams.m_instantiateCount = 0;
+			chassisCatalog.Load(&chassisParams);
+			GolName chassis;
+			remoteRecord.GetChassisName(chassis);
+			valid = valid && chassisCatalog.GetName(chassis) != NULL;
+			LegoU32 count = received[0x29] | (received[0x2a] << 8);
+			for (LegoU32 i = 0; valid && i < count; ++i) {
+				const LegoU8* piece = received + 0x2b + 8 * i;
+				LegoPieceLibrary::PieceRecord* model =
+					m_gameContext.m_pieceLibrary.FindPieceRecord(piece[0] | (piece[1] << 8), 1);
+				LegoS32 color = i == 0 ? piece[5] & 0x7f : piece[5];
+				valid = model != NULL && color < m_gameContext.m_colorTable.GetColorCount();
+			}
+			if (!valid) {
+				MessageBox(
+					context->m_golApp->GetHwnd(),
+					"The other player's car is not compatible with this build.",
+					"Online prototype",
+					MB_OK
+				);
+				OnlineRace::Close();
+				context->m_running = FALSE;
+				return;
+			}
+			BuildPlayerCarModel(&remoteRecord, remoteSlot, &rendererState);
+			BuildPlayerDriverModel(&remoteRecord, remoteSlot, &rendererState);
+			remoteRecord.GetCosmetics(&remoteSlot->m_cosmetics);
+			remoteRecord.GetName(remoteSlot->m_playerName);
+			remoteSlot->m_slotState = 1; // Remote custom build: no second local camera or AI route.
+		}
+		context->m_racerCount = OnlineRace::Count();
+		context->m_playerCount = 1;
+		context->m_raceMode = LegoRacers::Context::c_raceModeSingle;
+		context->m_currentRaceIndex = 0;
+		strcpy(context->m_circuitName, "c0");
+		RaceNameEntry* onlineTrack = m_gameContext.m_circuitList.GetEntries()[0].GetRaceNameEntry(0);
+		memcpy(context->m_raceSlots[0].m_raceName, onlineTrack->GetName(), 8);
+		memcpy(context->m_raceSlots[0].m_folderName, onlineTrack->GetFolderName(), 8);
+		context->m_raceSlots[0].m_enabled = 1;
+		context->m_raceSlots[0].m_mirror = 0;
+		for (unsigned i = 1; i < 4; ++i) {
+			context->m_raceSlots[i].m_enabled = 0;
+		}
+		SetWindowText(context->m_golApp->GetHwnd(), "Epoch LEGO Racers - Online prototype");
 	}
 
 	for (LegoU32 clearIndex = 0; clearIndex < 4; clearIndex++) {

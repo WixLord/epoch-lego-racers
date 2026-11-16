@@ -50,7 +50,7 @@ void RacerCollisionWorlds::Initialize(GolWorldDatabase* p_worldDatabase, RaceSta
 	if (m_worldCount) {
 		m_worldDatabase = p_worldDatabase;
 
-		for (LegoU32 racerIndex = 0; racerIndex < c_racerCount; racerIndex++) {
+		for (LegoU32 racerIndex = 0; racerIndex < p_raceState->GetRacerCount(); racerIndex++) {
 			m_racers[racerIndex] = &p_raceState->GetRacers()[racerIndex];
 			m_ttl[racerIndex] = new LegoU8[m_worldCount];
 			if (!m_ttl[racerIndex]) {
@@ -78,6 +78,7 @@ void RacerCollisionWorlds::Update(LegoU32 p_elapsedMs)
 			}
 
 			for (LegoU32 racerIndex = 0; racerIndex < sizeOfArray(m_racers); racerIndex++) {
+				if (!m_racers[racerIndex]) continue;
 				LegoU32 entryIndex = 0;
 				if (m_worldCount > 0) {
 					do {
@@ -134,6 +135,7 @@ LegoU32 RacerCollisionWorlds::Reset()
 	LegoU32 result = 0;
 
 	for (LegoS32 racerIndex = 0; racerIndex < c_racerCount; racerIndex++) {
+		if (!m_ttl[racerIndex]) continue;
 		result = 0;
 		for (; result < m_worldCount; result++) {
 			m_ttl[racerIndex][result] = 0;

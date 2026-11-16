@@ -1,0 +1,10 @@
+Engine: Visual Studio 2022, CMake, Win32.
+cmake -S Source/racers -B Build/racers -G "Visual Studio 17 2022" -A Win32 -DRACERS_DECOMP_ASSERT=OFF -DCMAKE_EXE_LINKER_FLAGS=/SAFESEH:NO -DCMAKE_SHARED_LINKER_FLAGS=/SAFESEH:NO
+cmake --build Build/racers --config Release
+Renderer: cmake -S Source/Renderer -B Build/renderer -A Win32
+cmake --build Build/renderer --config Release --target RebornRenderer
+Network bridge: clone https://github.com/ValveSoftware/GameNetworkingSockets into Source/GameNetworkingSockets at d534c19aa760df3fb75fd20db13ba1932b8a5463.
+Use vcpkg revision 8f363bdc11359ede4bc51e5eb32a2617538049c8 with protobuf, openssl, nlohmann-json (x64-windows-static).
+Configure Distribution/Online with the vcpkg toolchain, VCPKG_TARGET_TRIPLET=x64-windows-static, Visual Studio 2022 x64.
+cmake --build Build/online --config Release --target EpochOnline -- /p:VCToolsVersion=14.44.35207
+No original game assets are required to build the binaries. The installer reconstructs game data from the user's verified base installation.
