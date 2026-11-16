@@ -24,7 +24,8 @@ public class MeshAsset {
  public int AddStuds(){int count=0;var added=new List<Tri>();var seen=new HashSet<string>();foreach(var t in faces){if(materials[t.mat].IndexOf("nub",StringComparison.OrdinalIgnoreCase)<0)continue;
  var a=t.a.a;var b=t.b.a;var c=t.c.a;double nx=(b[1]-a[1])*(c[2]-a[2])-(b[2]-a[2])*(c[1]-a[1]),ny=(b[2]-a[2])*(c[0]-a[0])-(b[0]-a[0])*(c[2]-a[2]),nz=(b[0]-a[0])*(c[1]-a[1])-(b[1]-a[1])*(c[0]-a[0]);if(Math.Abs(nz)<Math.Sqrt(nx*nx+ny*ny+nz*nz)*.98)continue;
  double det=(b[3]-a[3])*(c[4]-a[4])-(c[3]-a[3])*(b[4]-a[4]);if(Math.Abs(det)<1e-8)continue;
- for(int y=0;y<2;y++)for(int x=0;x<4;x++){double u=.125+x*.25,v=.125+y*.25;double wb=((u-a[3])*(c[4]-a[4])-(c[3]-a[3])*(v-a[4]))/det,wc=((b[3]-a[3])*(v-a[4])-(u-a[3])*(b[4]-a[4]))/det,wa=1-wb-wc;if(wa<-.001||wb<-.001||wc<-.001)continue;
+ // Both stud atlases contain four rows, including the lower half used by RR/VV.
+ for(int y=0;y<4;y++)for(int x=0;x<4;x++){double u=.125+x*.25,v=.125+y*.25;double wb=((u-a[3])*(c[4]-a[4])-(c[3]-a[3])*(v-a[4]))/det,wc=((b[3]-a[3])*(v-a[4])-(u-a[3])*(b[4]-a[4]))/det,wa=1-wb-wc;if(wa<-.001||wb<-.001||wc<-.001)continue;
  var center=new V();for(int j=0;j<9;j++)center.a[j]=wa*a[j]+wb*b[j]+wc*c[j];string key=string.Format(System.Globalization.CultureInfo.InvariantCulture,"{0:F1},{1:F1},{2:F1}",center.a[0],center.a[1],center.a[2]);if(!seen.Add(key))continue;
  double size=Math.Sqrt(Math.Abs(nz/det))*.25;double radius=size*.30,height=size*.18;if(size<1||size>300)continue;count++;
  center.a[3]=.02;center.a[4]=.75;var top=center.Copy();top.a[2]+=height;top.normal=new double[]{0,0,1};

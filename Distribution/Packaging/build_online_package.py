@@ -6,13 +6,13 @@ import zipfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
-output = root / "Distribution/artifacts/online-v0.1.8"
+output = root / "Distribution/artifacts/online-v0.1.9"
 output.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(root / "Distribution/artifacts/lego-racers-remaster.zip") as source:
     files = {name: source.read(name) for name in source.namelist()}
 manifest = json.loads(files["manifest.json"])
-assert manifest["gameId"] == "lego-racers" and manifest["version"] == "v0.1.11"
-manifest.update(gameId="lego-racers-online", version="online-v0.1.8", executable="EpochOnline.exe", arguments=["--lobby"])
+assert manifest["gameId"] == "lego-racers" and manifest["version"] == "v0.1.12"
+manifest.update(gameId="lego-racers-online", version="online-v0.1.9", executable="EpochOnline.exe", arguments=["--lobby"])
 for name, path in {
     "RacersReborn.exe": root / "Build/racers/Release/RacersReborn.exe",
     "EpochOnline.exe": root / "Build/online/Release/EpochOnline.exe",

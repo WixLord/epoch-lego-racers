@@ -45,12 +45,15 @@ for name,tokens in source.items():
  print(name,': eight plates, height 1, studs enabled')
 # The first/basic brick theme offers every plate in all ten existing colors.
 t=source['MENUDATA/PIECEDB/DP_CSET.LEB'];colors=[x['Value'] for x in source['MENUDATA/PIECEDB/L_COLORS.LEB'] if x['Type']==2]
-i=next(i for i,x in enumerate(t) if x['Type']==48);t[i+2]['Value']+=len(plates)*len(colors)
-added=[{'Type':2,'Value':value} for _,_,label,_ in plates for col in colors for value in (label,col)]
+# Keep all eight model IDs for existing saves, but list each footprint once.
+# ep2x1 is the rotated equivalent of ep1x2.
+browser_plates=[p for p in plates if p[2]!='ep2x1']
+i=next(i for i,x in enumerate(t) if x['Type']==48);t[i+2]['Value']+=len(browser_plates)*len(colors)
+added=[{'Type':2,'Value':value} for _,_,label,_ in browser_plates for col in colors for value in (label,col)]
 t[-1:-1]=added
 with (root/'MENUDATA/PIECEDB/DP_CSET.LEB').open('wb') as f:
  for token in t:
   k,v=token['Type'],token['Value'];f.write(bytes([k]))
   if k==2:f.write(v.encode()+b'\0')
   elif k==4:f.write(struct.pack('<i',v))
-print('Basic theme: added 80 colored plate choices')
+print('Basic theme: added',len(browser_plates)*len(colors),'unique colored plate choices')
