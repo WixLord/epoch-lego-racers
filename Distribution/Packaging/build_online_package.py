@@ -6,13 +6,13 @@ import zipfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
-output = root / "Distribution/artifacts/online-v0.1.6"
+output = root / "Distribution/artifacts/online-v0.1.7"
 output.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(root / "Distribution/artifacts/lego-racers-remaster.zip") as source:
     files = {name: source.read(name) for name in source.namelist()}
 manifest = json.loads(files["manifest.json"])
-assert manifest["gameId"] == "lego-racers" and manifest["version"] == "v0.1.9"
-manifest.update(gameId="lego-racers-online", version="online-v0.1.6", executable="EpochOnline.exe", arguments=["--lobby"])
+assert manifest["gameId"] == "lego-racers" and manifest["version"] == "v0.1.10"
+manifest.update(gameId="lego-racers-online", version="online-v0.1.7", executable="EpochOnline.exe", arguments=["--lobby"])
 for name, path in {
     "RacersReborn.exe": root / "Build/racers/Release/RacersReborn.exe",
     "EpochOnline.exe": root / "Build/online/Release/EpochOnline.exe",
@@ -78,6 +78,9 @@ with zipfile.ZipFile(output / "online-corresponding-source.zip", "w", zipfile.ZI
         target.write(root / "Tools" / name, "Tools/" + name)
     for name in ["README.md", "BatmanCowl.fbx", "cowl-mesh.json", "mask.png", "mask.json", "torso-front-custom.png", "torso-game.png", "torso-front.json", "torso-back.json"]:
         target.write(root / "Assets/Batman" / name, "Assets/Batman/" + name)
+    for name in ["Build-PlatesPackage.ps1", "Build-Plates.py", "MeshAsset.cs"]:
+        target.write(root / "Tools" / name, "Tools/" + name)
+    target.write(root / "Assets/Plates/README.md", "Assets/Plates/README.md")
     target.writestr("BUILD.txt", """Engine: Visual Studio 2022, CMake, Win32.
 cmake -S Source/racers -B Build/racers -G "Visual Studio 17 2022" -A Win32 -DRACERS_DECOMP_ASSERT=OFF -DCMAKE_EXE_LINKER_FLAGS=/SAFESEH:NO -DCMAKE_SHARED_LINKER_FLAGS=/SAFESEH:NO
 cmake --build Build/racers --config Release
