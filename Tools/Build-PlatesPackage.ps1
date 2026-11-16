@@ -10,10 +10,7 @@ $inputData | ConvertTo-Json -Depth 5 -Compress | Set-Content "$PSScriptRoot/../B
 Push-Location "$PSScriptRoot/.."
 try { & Build/network-venv/Scripts/python.exe Tools/Build-Plates.py; if($LASTEXITCODE){throw 'Plate conversion failed'} } finally {Pop-Location}
 foreach($f in Get-ChildItem $root -Recurse -Filter '*.GDB') {
- if($f.BaseName -match 'JMW' -and $f.BaseName -ne 'BIKE') {
-  $mesh=[MeshAsset]::new($f.FullName)
-  if($mesh.faces.Count -lt 500) { $changed=$mesh.RoundWheels(); if($changed){$mesh.Write($f.FullName); Write-Output "Round wheels: $($f.BaseName), $($mesh.faces.Count) triangles"} }
- } elseif($f.BaseName -match 'CM$') {
+ if($f.BaseName -match 'CM$') {
   $mesh=[MeshAsset]::new($f.FullName)
   $count=$mesh.AddStuds()
   if($count){$mesh.Write($f.FullName);Write-Output "AI studs: $($f.BaseName), $count studs"}

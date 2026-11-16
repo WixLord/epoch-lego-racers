@@ -27,9 +27,13 @@ public class MeshAsset {
  for(int y=0;y<2;y++)for(int x=0;x<4;x++){double u=.125+x*.25,v=.125+y*.25;double wb=((u-a[3])*(c[4]-a[4])-(c[3]-a[3])*(v-a[4]))/det,wc=((b[3]-a[3])*(v-a[4])-(u-a[3])*(b[4]-a[4]))/det,wa=1-wb-wc;if(wa<-.001||wb<-.001||wc<-.001)continue;
  var center=new V();for(int j=0;j<9;j++)center.a[j]=wa*a[j]+wb*b[j]+wc*c[j];string key=string.Format(System.Globalization.CultureInfo.InvariantCulture,"{0:F1},{1:F1},{2:F1}",center.a[0],center.a[1],center.a[2]);if(!seen.Add(key))continue;
  double size=Math.Sqrt(Math.Abs(nz/det))*.25;double radius=size*.30,height=size*.18;if(size<1||size>300)continue;count++;
- center.a[3]=.02;center.a[4]=.75;var top=center.Copy();top.a[2]+=height;
- for(int side=0;side<16;side++){double ang=side*Math.PI/8,ang2=(side+1)*Math.PI/8;var p=center.Copy();var q=center.Copy();p.a[0]+=radius*Math.Cos(ang);p.a[1]+=radius*Math.Sin(ang);q.a[0]+=radius*Math.Cos(ang2);q.a[1]+=radius*Math.Sin(ang2);var pt=p.Copy();var qt=q.Copy();pt.a[2]+=height;qt.a[2]+=height;
- added.Add(new Tri(top.Copy(),pt.Copy(),qt.Copy(),t.mat,t.node));double shade=.72+.16*Math.Cos(ang+.6);for(int j=5;j<8;j++){p.a[j]*=shade;q.a[j]*=shade;pt.a[j]*=shade;qt.a[j]*=shade;}added.Add(new Tri(p,q,qt,t.mat,t.node));added.Add(new Tri(p,qt,pt,t.mat,t.node));}}
+ center.a[3]=.02;center.a[4]=.75;var top=center.Copy();top.a[2]+=height;top.normal=new double[]{0,0,1};
+ for(int side=0;side<6;side++){double ang=side*Math.PI/3,ang2=(side+1)*Math.PI/3;var p=center.Copy();var q=center.Copy();p.a[0]+=radius*Math.Cos(ang);p.a[1]+=radius*Math.Sin(ang);q.a[0]+=radius*Math.Cos(ang2);q.a[1]+=radius*Math.Sin(ang2);var pt=p.Copy();var qt=q.Copy();pt.a[2]+=height;qt.a[2]+=height;
+ if(side>=1&&side<=4){var cap=top.Copy();cap.a[0]+=radius;added.Add(new Tri(cap,pt.Copy(),qt.Copy(),t.mat,t.node));}// Bake a shared radial side normal at each endpoint; the cap copies above
+ // retain their upward shading and stay separate across the hard rim.
+ double shadeP=.72+.16*Math.Cos(ang+.6),shadeQ=.72+.16*Math.Cos(ang2+.6);
+ p.normal=pt.normal=new double[]{Math.Cos(ang),Math.Sin(ang),0};q.normal=qt.normal=new double[]{Math.Cos(ang2),Math.Sin(ang2),0};
+ for(int j=5;j<8;j++){p.a[j]*=shadeP;q.a[j]*=shadeQ;pt.a[j]*=shadeP;qt.a[j]*=shadeQ;}added.Add(new Tri(p,q,qt,t.mat,t.node));added.Add(new Tri(p,qt,pt,t.mat,t.node));}}
  // The physical studs replace the baked circles on their supporting faces.
  t.a.a[3]=t.b.a[3]=t.c.a[3]=.02;t.a.a[4]=t.b.a[4]=t.c.a[4]=.75;
  }faces.AddRange(added);return count;}
