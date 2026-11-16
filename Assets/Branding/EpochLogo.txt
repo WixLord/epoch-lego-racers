@@ -2,3 +2,4 @@ Current menu logo: user-supplied FinalLogoLR.png, copied without artwork changes
 Converted directly to top-origin 32-bit BGRA TGA; alpha preserved.
 The older original-logo/subtitle composite assets and script are retained as historical sources, not used to generate this version.
 LEGO and LEGO Racers artwork/trademarks belong to their respective owners; unofficial fan mod.
+v0.1.5: user-confirmed FinalLogoLR2.png with green EPOCH lettering, copied unchanged.
