@@ -1,5 +1,4 @@
-Original: user-supplied untouched LEGO Racers logo. All 196352 original RGBA pixels preserved exactly.
-Subtitle: built-in imagegen, prompt: ONLY EPOCH REMASTERED, silver-white bold italic racing typography, black and dark-blue outline, transparent background.
-Composite: subtitle restricted to extended canvas below original. Original region copied verbatim and verified after PNG save. No resampling or generation applied to original art.
+Current menu logo: user-supplied FinalLogoLR.png, copied without artwork changes.
+Converted directly to top-origin 32-bit BGRA TGA; alpha preserved.
+The older original-logo/subtitle composite assets and script are retained as historical sources, not used to generate this version.
 LEGO and LEGO Racers artwork/trademarks belong to their respective owners; unofficial fan mod.
-Spacing revision: subtitle moved up 20 pixels into transparent space below the flag. All nontransparent original artwork pixels verified unchanged after saving.
