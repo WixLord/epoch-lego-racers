@@ -1,16 +1,16 @@
-# LEGO Racers Remastered — private development preview
+# LEGO Racers Remastered ï¿½ private development preview
 
 Personal remaster mod based on [isledecomp/racers](https://github.com/isledecomp/racers).
 This repository contains modified engine source, the Direct3D 11 renderer and
 asset-processing tools. The release ZIP contains mod binaries and a delta patch.
 It does not contain the full game archive, music, original game executable,
-personal saves, third-party fonts, branded replacement logo, or dgVoodoo binaries.
+personal saves, third-party fonts, or dgVoodoo binaries. The Epoch Remastered replacement title logo is included.
 
 ## Install
 
 Use the Epoch Remasters installer with your supported original PC installation.
 The exact base archive and music hashes are in the release manifest. The modified
-JAM is reconstructed locally. This private preview is not ready for public release.
+JAM is reconstructed locally. The replacement title logo is installed automatically alongside the mod.
 Required Microsoft Visual C++ x86 runtime DLLs are included app-locally.
 
 ## Build binaries
@@ -38,3 +38,4 @@ Original game rights and trademarks remain with their respective owners.
 Private development does not establish permission for public redistribution.
 
 Upstream source revision: `7675cebe85578e529d384bc3a5a47ac6163cb553`
+

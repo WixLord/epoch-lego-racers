@@ -1,7 +1,7 @@
 {
-  "version": "v0.1.0",
-  "sha256": "d13af64fcddcfbce2fed1f96ca8d0a6700ed96b2aa691cb3c60f788a3f90f044",
-  "size": 1533468,
+  "version": "v0.1.1",
+  "sha256": "ecdd8ab5a56d11ddf7b78b98353c84bfe26d6c3d4be58832a53c45e7a2dc9b60",
+  "size": 2831819,
   "baseArchiveSha256": "5eadf314868d67732866b474796dbfd1666c595cce1e131d2b850014cd7025c1",
   "outputArchiveSha256": "2513ec714f34d3880dec62a930bf78a5226f330fde57e5d77408883db3110897",
   "bytesCopiedFromUserArchive": 19236008,
@@ -17,6 +17,7 @@
     "payload/RacersReborn.exe",
     "payload/Reborn.ini",
     "payload/RebornRenderer.dll",
+    "payload/RemasterLogo.tga",
     "payload/msvcp140.dll",
     "payload/vcruntime140.dll"
   ],
@@ -26,7 +27,6 @@
     "*.tun",
     "Save/",
     "Fonts/",
-    "RemasterLogo.tga",
     "D3DImm.dll",
     "DDraw.dll",
     "logs",

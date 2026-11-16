@@ -1,0 +1,3 @@
+Built-in imagegen edit prompt: Preserve the LEGO square, RACERS lettering, flag and trophy; replace REMASTERED with EPOCH REMASTERED in the same silver-white italic style, on a transparent background.
+LEGO and LEGO Racers trademarks/artwork belong to their respective owners. This title graphic is a fan-mod asset, not official branding or an endorsement.
+The PNG is converted without pixel changes to a 32-bit BGRA, top-origin TGA for the existing menu loader.

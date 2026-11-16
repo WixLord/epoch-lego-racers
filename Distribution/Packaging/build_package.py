@@ -101,7 +101,10 @@ def build(workspace, output, version):
         data = (redist / name).read_bytes()
         files['payload/' + name] = data
         manifest['files'].append(dict(source='payload/' + name, destination=name, sha256=digest(data)))
-    # No third-party font files or logo assets: fallback is the user's original UI font/logo.
+    logo = (workspace / 'Assets/Branding/RemasterLogo.tga').read_bytes()
+    files['payload/RemasterLogo.tga'] = logo
+    manifest['files'].append(dict(source='payload/RemasterLogo.tga', destination='RemasterLogo.tga', sha256=digest(logo)))
+    # Fonts remain optional; ship the explicitly requested replacement title logo.
     config = b'[Video]\nRenderer=d3d11\nRaceResolution=desktop\nAntialiasing=4x\nFiltering=16\nForceVerticalSync=true\nShadows=scene\nBloom=medium\nAmbientOcclusion=subtle\n'
     files['payload/Reborn.ini'] = config
     manifest['files'].append(dict(source='payload/Reborn.ini', destination='Reborn.ini', sha256=digest(config), preserve=True))
@@ -128,7 +131,7 @@ This package has not yet completed its public redistribution review.
                   baseArchiveSha256=digest(original), outputArchiveSha256=digest(modified),
                   bytesCopiedFromUserArchive=copied, deltaLiteralBytes=inserted,
                   includedFiles=sorted(files), excluded=['Original game executables', 'LEGO.JAM', '*.tun', 'Save/',
-                      'Fonts/', 'RemasterLogo.tga', 'D3DImm.dll', 'DDraw.dll', 'logs', 'credentials'],
+                      'Fonts/', 'D3DImm.dll', 'DDraw.dll', 'logs', 'credentials'],
                   publicReleaseReady=False)
     (output / 'package-audit.json').write_text(json.dumps(report, indent=2))
     print(json.dumps({k: v for k, v in report.items() if k != 'includedFiles'}, indent=2))
