@@ -34,6 +34,14 @@ try:
     for index in range(1, 6):
         launch(index, code)
     wait_for(lambda: all(path.read_text(errors="replace").count("CONNECTED relay") == 5 for path in logs))
+    # Chat must be delivered as text, never interpreted as r/s/q commands.
+    processes[1].stdin.write(b'chat "ready start quit - hello lobby"\n'); processes[1].stdin.flush()
+    wait_for(lambda: all('"text":"ready start quit - hello lobby"' in path.read_text(errors="replace") for path in logs))
+    processes[1].stdin.write(b"r\n"); processes[1].stdin.flush()
+    wait_for(lambda: '"ready":true' in logs[1].read_text(errors="replace"))
+    processes[1].stdin.write(b"u\n"); processes[1].stdin.flush()
+    wait_for(lambda: [line for line in logs[1].read_text(errors="replace").splitlines() if line.startswith("STATE ")][-1].endswith('"ready":false}'))
+    print("PASS: authenticated chat delivered to six peers, ready/unready acknowledged")
     for process in processes:
         process.stdin.write(b"r\n"); process.stdin.flush()
     wait_for(lambda: any(line.count("[ready]") == 6 for line in logs[0].read_text().splitlines()))

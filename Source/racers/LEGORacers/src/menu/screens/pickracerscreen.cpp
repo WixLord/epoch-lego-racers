@@ -2,6 +2,7 @@
 
 #include "menu/menugamecontext.h"
 #include "menu/menuscreenid.h"
+#include "race/onlinerace.h"
 
 DECOMP_SIZE_ASSERT(PickRacerScreen, 0x4c8c)
 
@@ -30,12 +31,24 @@ void PickRacerScreen::CreateWidgets()
 		textId += 0x15;
 	}
 
-	CreateTextLabel(&m_infoLabel, 0x3a, 0x3a, textId);
+	CreateTextLabel(&m_infoLabel, 0x3a, OnlineRace::Requested() ? 0x37 : 0x3a, textId);
 	m_infoLabel.WrapText(0x14);
 	CreateTextButton(&m_controlsButton, 9, 0x42, 0xb9);
-	CreateTextButton(&m_startButton, 0x41, 0x46, 0x72);
+	CreateTextButton(&m_startButton, 0x41, OnlineRace::Requested() ? 0x42 : 0x46, 0x72);
 	CreateTextButton(&m_nextPlayerButton, 0x40, 0x46, 0x72);
 	CreateTextButton(&m_backButton, 0x3f, 0x45, 0x1f);
+	if (OnlineRace::Requested()) {
+		m_infoLabel.SetText("SELECT RACER");
+		m_infoLabel.WrapText(24);
+		GolString text;
+		GolString::CopyStringToBuf16("JOIN RACE", m_onlineJoinText);
+		text.CopyFromBufSelection(m_onlineJoinText, 16);
+		m_startButton.SetText(&text);
+		m_controlsButton.Disable(5);
+		m_controlsButton.ClearFlags(2);
+		m_backButton.Disable(5);
+		m_backButton.ClearFlags(2);
+	}
 }
 
 // FUNCTION: LEGORACERS 0x00484e40
@@ -55,6 +68,12 @@ LegoBool32 PickRacerScreen::Initialize(MenuGameContext* p_context, MenuScreenCre
 	}
 
 	SetupLighting();
+	if (OnlineRace::Requested()) {
+		m_cursor->SetCursorEnabled(TRUE);
+		if (!m_recordCounts[0]) {
+			m_startButton.Disable(5);
+		}
+	}
 
 	if (p_context->m_modelBuilder.GetMenuFlowFlags() & DriverModelBuilder::c_menuFlowVersus) {
 		m_nameSelectors[0].SetAcceptUnfocusedInput(TRUE);
@@ -90,6 +109,9 @@ void PickRacerScreen::OnIconUnfocused(MenuWidget* p_source)
 			m_context->m_context->m_racerCount = 0;
 		}
 
+		if (!m_recordCursors[0].GetSelectedRecord()) {
+			return;
+		}
 		PlayRandomNamedAnimation(0);
 		MenuGameContext* context = m_context;
 		SaveRecordList::Record* record = m_recordCursors[0].GetSelectedRecord();
@@ -103,6 +125,9 @@ void PickRacerScreen::OnIconUnfocused(MenuWidget* p_source)
 		m_nextMenuId = 0x41;
 	}
 	else if (p_source == &m_nextPlayerButton) {
+		if (!m_recordCursors[0].GetSelectedRecord()) {
+			return;
+		}
 		PlayRandomNamedAnimation(0);
 		MenuGameContext* context = m_context;
 		SaveRecordList::Record* record = m_recordCursors[0].GetSelectedRecord();
@@ -151,6 +176,10 @@ void PickRacerScreen::Navigate()
 		CommitRecordSelections();
 		return;
 	case 0x3f:
+		if (OnlineRace::Requested()) {
+			m_context->m_context->m_running = FALSE;
+			return;
+		}
 		m_context->m_menuStack.Pop();
 		CommitRecordSelections();
 		return;

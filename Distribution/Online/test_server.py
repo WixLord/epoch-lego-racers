@@ -32,6 +32,28 @@ class RoomsTest(unittest.IsolatedAsyncioTestCase):
         return await self.post("join", dict(game=room["game"], version=room["version"],
                                             name=name, code=room["code"]), **kwargs)
 
+    async def test_chat_is_authenticated_bounded_and_room_scoped(self):
+        host = await self.create()
+        guest = await self.join(host)
+        other = await self.create()
+        await self.post("chat", {"text": "hello"}, status=401)
+        await self.post("chat", {"text": "hello", "name": "Imposter"}, guest["token"])
+        room = (await self.post("poll", token=host["token"]))["room"]
+        self.assertEqual(room["chat"], [{"sequence": 1, "sender": guest["id"], "name": "Guest", "text": "hello"}])
+        self.assertEqual((await self.post("poll", token=other["token"]))["room"]["chat"], [])
+        for invalid in ["", "   ", "x" * 321, "x\ny", 42]:
+            await self.post("chat", {"text": invalid}, guest["token"], status=400)
+        for i in range(7):
+            await self.post("chat", {"text": str(i)}, guest["token"])
+        await self.post("chat", {"text": "flood"}, guest["token"], status=429)
+        for i in range(70):
+            self.now += 11
+            await self.post("poll", token=host["token"])
+            await self.post("chat", {"text": str(i)}, guest["token"])
+        history = (await self.post("poll", token=host["token"]))["room"]["chat"]
+        self.assertEqual(len(history), 64)
+        self.assertEqual(history[-1]["sequence"], 78)
+
     async def test_six_player_lobby_host_start_and_loading_barrier(self):
         host = await self.create(capacity=6)
         peers = [host] + [await self.join(host, "P" + str(i)) for i in range(5)]

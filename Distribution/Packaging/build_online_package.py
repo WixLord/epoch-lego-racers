@@ -6,13 +6,13 @@ import zipfile
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[2]
-output = root / "Distribution/artifacts/online-v0.1.0"
+output = root / "Distribution/artifacts/online-v0.1.1"
 output.mkdir(parents=True, exist_ok=True)
 with zipfile.ZipFile(root / "Distribution/artifacts/lego-racers-remaster.zip") as source:
     files = {name: source.read(name) for name in source.namelist()}
 manifest = json.loads(files["manifest.json"])
 assert manifest["gameId"] == "lego-racers" and manifest["version"] == "v0.1.6"
-manifest.update(gameId="lego-racers-online", version="online-v0.1.0", executable="EpochOnline.exe", arguments=["--lobby"])
+manifest.update(gameId="lego-racers-online", version="online-v0.1.1", executable="EpochOnline.exe", arguments=["--lobby"])
 for name, path in {
     "RacersReborn.exe": root / "Build/racers/Release/RacersReborn.exe",
     "EpochOnline.exe": root / "Build/online/Release/EpochOnline.exe",
@@ -26,12 +26,13 @@ files["licenses/GameNetworkingSockets.txt"] = (root / "Source/GameNetworkingSock
 for dependency in ["abseil", "openssl", "protobuf", "utf8-range", "nlohmann-json"]:
     files["licenses/" + dependency + ".txt"] = (root / "Build/vcpkg/installed/x64-windows-static/share" / dependency / "copyright").read_bytes()
 files["ONLINE-WIP.txt"] = b"""Lego Racers - Epoch Remastered (Online WIP)
-Install this separate entry through Epoch Launcher 0.4.0 or newer.
+Install this separate entry through Epoch Launcher 0.4.8 or newer.
 Requires your own supported PC game. No base archive, music or personal saves included.
 
 Play opens the online lobby. Enter a name and host or join a room.
 Wait for every peer to connect. Everyone clicks Ready; the host clicks Start race.
-In the game, select a saved custom racer, choose Single Race and start.
+The game opens the online racer picker directly. Select your saved racer and click Join Race.
+Wait for every player to join before the synchronized start.
 The prototype selects Pirate Skull Pass with 2-6 human racers and no bots.
 Names above cars use the saved racer names. Custom cars are exchanged automatically.
 For the next session, everyone exits the game to return to the same lobby.

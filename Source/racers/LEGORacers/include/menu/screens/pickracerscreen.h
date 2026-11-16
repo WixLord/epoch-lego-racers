@@ -31,6 +31,7 @@ protected:
 	MenuTextButton m_controlsButton;   // 0x46a8
 	MenuTextButton m_backButton;       // 0x4998
 	undefined4 m_unk0x4c88;            // 0x4c88
+	undefined2 m_onlineJoinText[16];   // Owned text for the online confirmation button.
 };
 
 #endif // PICKRACERSCREEN_H

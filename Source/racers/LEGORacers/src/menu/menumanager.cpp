@@ -276,7 +276,20 @@ LegoS32 MenuManager::Initialize(LegoRacers::Context* p_context)
 	m_renderer->SetViewportRect(7, g_menuViewportParams);
 
 	m_gameContext.m_menuStack.Allocate(10);
-	m_gameContext.m_menuStack.Push(m_gameContext.m_context->m_nextMenuId);
+	// Online sessions go straight to the saved-racer picker. The track is
+	// fixed by PrepareRaceContext after the player confirms Join Race.
+	if (OnlineRace::Requested()) {
+		p_context->m_raceMode = LegoRacers::Context::c_raceModeSingle;
+		p_context->m_racerCount = 0;
+		m_gameContext.m_saveSystem.GetActiveRecord().Reset();
+		m_gameContext.m_modelBuilder.SetMenuFlowFlags(
+			m_gameContext.m_modelBuilder.GetMenuFlowFlags() & ~DriverModelBuilder::c_menuFlowVersus
+		);
+		m_gameContext.m_menuStack.Push(c_menuPickRacer);
+	}
+	else {
+		m_gameContext.m_menuStack.Push(m_gameContext.m_context->m_nextMenuId);
+	}
 
 	if (flag && HasPendingMemoryCardSaves()) {
 		m_gameContext.m_menuStack.Push(c_menuSaveAll);

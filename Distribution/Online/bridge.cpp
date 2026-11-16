@@ -273,7 +273,9 @@ int main(int argc, char** argv)
         std::map<std::string, unsigned> probeCounts;
         unsigned probePlayers = args.count("--peers") ? (unsigned)std::stoi(args["--peers"]) : 2;
         bool probePassed = false;
-        std::string rosterText, iceText, statusText;
+        std::string rosterText, iceText, statusText, inputLine, stateText;
+        unsigned long long chatSequence = 0;
+        bool discardInput = false;
         while (!lobby.stop) {
             sockets->RunCallbacks();
             Json room, ice; std::deque<Json> signals; Clock::time_point raceTime;
@@ -327,17 +329,49 @@ int main(int argc, char** argv)
                 for (const auto& item : peers) sockets->SendMessageToConnection(item.second, "EPOCH-PROBE", 11, k_nSteamNetworkingSend_Unreliable, nullptr);
                 nextProbe = Clock::now() + std::chrono::milliseconds(100);
             }
+            bool ownReady = false;
+            for (const auto& member : room.at("members"))
+                if (member.at("id") == lobby.id) ownReady = member.value("ready", false);
+            Json state = {{"ready", ownReady}, {"canReady", connected && currentStatus == "lobby"},
+                {"canStart", hosting && connected && currentStatus == "lobby" &&
+                    std::all_of(room.at("members").begin(), room.at("members").end(),
+                        [](const Json& m) { return m.value("waiting", false) || m.value("ready", false); })}};
+            if (state.dump() != stateText) { stateText = state.dump(); std::cout << "STATE " << stateText << std::endl; }
+            for (const auto& message : room.value("chat", Json::array())) {
+                auto sequence = message.at("sequence").get<unsigned long long>();
+                if (sequence > chatSequence) { std::cout << "CHAT " << message.dump() << std::endl; chatSequence = sequence; }
+            }
             DWORD available = 0;
             bool piped = GetFileType(GetStdHandle(STD_INPUT_HANDLE)) == FILE_TYPE_PIPE;
             bool inputReady = piped ? PeekNamedPipe(GetStdHandle(STD_INPUT_HANDLE), nullptr, 0, nullptr, &available, nullptr) && available : _kbhit() != 0;
+            bool quit = false;
             if (inputReady) {
-                char input = 0; DWORD read = 0;
-                if (piped) ReadFile(GetStdHandle(STD_INPUT_HANDLE), &input, 1, &read, nullptr);
-                int key = piped ? input : _getch();
-                if (key == 'q' || key == 'Q') break;
-                if ((key == 'r' || key == 'R') && connected) lobby.Queue("ready", {{"ready", true}});
-                if ((key == 's' || key == 'S') && hosting && connected) lobby.Queue("start");
+                char input[4096]; DWORD read = 0;
+                if (piped) ReadFile(GetStdHandle(STD_INPUT_HANDLE), input, (DWORD)sizeof(input), &read, nullptr);
+                else { input[0] = (char)_getch(); read = 1; }
+                for (DWORD i = 0; i < read; ++i) {
+                    char c = input[i];
+                    if (c != '\r' && c != '\n') {
+                        if (inputLine.size() < 4096 && !discardInput) inputLine += c;
+                        else discardInput = true;
+                    }
+                    if (!piped || c == '\n') {
+                        std::string command = discardInput ? "" : inputLine;
+                        inputLine.clear(); discardInput = false;
+                        if (command == "q" || command == "Q") { quit = true; break; }
+                        if ((command == "r" || command == "u") && connected && currentStatus == "lobby")
+                            lobby.Queue("ready", {{"ready", command == "r"}});
+                        if (command == "s" && hosting && connected) lobby.Queue("start");
+                        if (command.rfind("chat ", 0) == 0) {
+                            try {
+                                auto message = Json::parse(command.substr(5));
+                                if (message.is_string()) lobby.Queue("chat", {{"text", message}});
+                            } catch (const std::exception&) { std::cerr << "Invalid chat message" << std::endl; }
+                        }
+                    }
+                }
             }
+            if (quit) break;
             if (!probe && room.at("phase") == "loading" && !launched && !awaitingLobby && connected) {
                 raceIds = ids;
                 SetEnvironmentVariableA("EPOCH_PLAYER_COUNT", std::to_string(raceIds.size()).c_str());
@@ -352,7 +386,7 @@ int main(int argc, char** argv)
                 if (!CreateProcessW(executable.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, executable.parent_path().c_str(), &startup, &process))
                     throw std::runtime_error("Cannot launch game");
                 CloseHandle(process.hThread); launched = true;
-                std::cout << "Select your saved racer and start Single Race. The prototype selects the shared track." << std::endl;
+                std::cout << "Select your saved racer in the game and click Join Race. Wait for everyone to join." << std::endl;
             }
             char packet[4096]; sockaddr_in sender{}; int senderSize = sizeof(sender);
             for (int budget = 0; budget < 64; ++budget) {

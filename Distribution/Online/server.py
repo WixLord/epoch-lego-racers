@@ -43,6 +43,8 @@ class Room:
     start_at: int = 0
     public: bool = False
     name: str = "Epoch race"
+    chat: deque = field(default_factory=lambda: deque(maxlen=64))
+    chat_sequence: int = 0
 
 
 class RoomService:
@@ -129,7 +131,7 @@ class RoomService:
             "serverTime": int(self.clock() * 1000), "startAt": room.start_at,
             "members": [{"id": m.id, "name": m.name, "ready": m.ready,
                          "loaded": m.loaded, "waiting": m.waiting, "finished": m.finished} for m in room.members.values()],
-            "public": room.public, "name": room.name,
+            "public": room.public, "name": room.name, "chat": list(room.chat),
         }
 
     def credentials(self, member):
@@ -233,6 +235,14 @@ class RoomService:
             if target is None or target is member or member.waiting or target.waiting or not 1 <= len(payload) <= 6144:
                 raise web.HTTPBadRequest(text="Invalid peer or signal")
             target.signals.append({"from": member.id, "data": encoded})
+        elif action == "chat":
+            message = self.text(data, "text", 320).strip()
+            if not message:
+                raise web.HTTPBadRequest(text="Empty message")
+            self.limit(("chat", member.id), 8, 10)
+            room.chat_sequence += 1
+            room.chat.append({"sequence": room.chat_sequence, "sender": member.id,
+                              "name": member.name, "text": message})
         elif action == "ready":
             if member.waiting or room.phase != "lobby" or type(data.get("ready")) is not bool:
                 raise web.HTTPConflict(text="Cannot change readiness")

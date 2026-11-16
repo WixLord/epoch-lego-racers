@@ -475,14 +475,25 @@ void DrawNames(GolCamera* p_camera, GolFontBase* p_font, GolD3DRenderDevice* p_r
 			0
 		);
 	}
-	const char* status = !Ready() ? "Waiting for other racers..." : NULL;
+	const char* status = !Ready() ? "Waiting for all players" : NULL;
 	for (unsigned i = 0; i < playerCount; ++i) {
-		if (i != localSlot && GetTickCount() - peers[i].lastReceive > 5000) {
+		if (Ready() && i != localSlot && GetTickCount() - peers[i].lastReceive > 5000) {
 			status = "Connection lost - waiting for racer";
 		}
 	}
 	if (status) {
-		p_font->DrawString(status, p_renderer, 20, 20, scale, scale, NULL, 0);
+		int width, height;
+		p_font->MeasureString(status, &width, &height);
+		p_font->DrawString(
+			status,
+			p_renderer,
+			static_cast<int>((target->GetWidthU32() - width * scale) * .5f),
+			static_cast<int>(target->GetHeightU32() * .18f),
+			scale,
+			scale,
+			NULL,
+			0
+		);
 	}
 }
 } // namespace OnlineRace
