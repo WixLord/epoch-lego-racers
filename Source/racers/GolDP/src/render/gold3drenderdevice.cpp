@@ -1,5 +1,6 @@
 #include "render/gold3drenderdevice.h"
 
+#include "../../../LEGORacers/include/util/settingsfile.h"
 #include "camera/golcamera.h"
 #include "camera/golscenetransformnode.h"
 #include "camera/goltransform.h"
@@ -183,8 +184,8 @@ GolD3DRenderDevice::GolD3DRenderDevice()
 	m_nativeApi = NULL;
 	m_nativeContext = NULL;
 	m_nativeFrames = 0;
-    m_nativeAO = 0;
-    m_nativeShadows = false;
+	m_nativeAO = 0;
+	m_nativeShadows = false;
 	m_bloomFailed = FALSE;
 	m_collectingShadows = FALSE;
 	m_shadowFailed = FALSE;
@@ -368,6 +369,9 @@ LegoS32 GolD3DRenderDevice::Initialize(GolDrawDPState* p_drawState, GolRenderTar
 // FUNCTION: GOLDP 0x10007e20
 LegoS32 GolD3DRenderDevice::CreateRenderer(LegoU32 p_flags)
 {
+	SettingsFile settings("Reborn.ini");
+	static const char* const renderers[] = {"legacy", "d3d11"};
+	bool native = settings.ReadChoice("Video", "Renderer", renderers, 2, 0) == 1;
 	GolSurfaceFormat swTextureFormat;
 	LegoU32 forceSoftware;
 	LegoChar errorMessage[64];
@@ -396,7 +400,7 @@ LegoS32 GolD3DRenderDevice::CreateRenderer(LegoU32 p_flags)
 		m_unk0xc83c4 = 0;
 		m_applyMaterialFn = &GolD3DRenderDevice::ApplyMaterialHw;
 
-		if (m_flags & c_flagZBuffer && !m_drawState->SupportsZBufferlessHsr()) {
+		if (!native && (m_flags & c_flagZBuffer) && !m_drawState->SupportsZBufferlessHsr()) {
 			LegoS32 r = m_depthBuffer.Create(m_drawState, m_primaryRenderTarget);
 			if (r != 0) {
 				return r;
@@ -404,8 +408,30 @@ LegoS32 GolD3DRenderDevice::CreateRenderer(LegoU32 p_flags)
 		}
 
 		LPDIRECTDRAWSURFACE4 renderSurface = m_primaryRenderTarget->m_renderSurface;
+		LPDIRECTDRAWSURFACE4 compatibilitySurface = NULL;
+		if (native) {
+			// Keep the full-size CPU/loading surface intact. Only the obsolete D3D6 device
+			// needs a small compatibility target; D3D11 owns the actual frame and depth buffer.
+			DDSURFACEDESC2 desc = {};
+			desc.dwSize = sizeof(desc);
+			renderSurface->GetSurfaceDesc(&desc);
+			desc.dwFlags = DDSD_CAPS | DDSD_WIDTH | DDSD_HEIGHT | DDSD_PIXELFORMAT;
+			desc.dwWidth = 640;
+			desc.dwHeight = 480;
+			desc.ddsCaps.dwCaps = DDSCAPS_VIDEOMEMORY | DDSCAPS_OFFSCREENPLAIN | DDSCAPS_3DDEVICE;
+			if (m_drawState->m_ddraw4->CreateSurface(&desc, &compatibilitySurface, NULL) != DD_OK) {
+				GOL_FATALERROR_MESSAGE("Unable to create native compatibility surface");
+			}
+			renderSurface = compatibilitySurface;
+			m_viewportParams.dwWidth = 640;
+			m_viewportParams.dwHeight = 480;
+		}
 		HRESULT hresult =
 			m_drawState->m_d3d3->CreateDevice(m_drawState->m_deviceGuid, renderSurface, &m_d3dDevice, NULL);
+		if (compatibilitySurface) {
+			compatibilitySurface->Release();
+		}
+
 		if (hresult != D3D_OK) {
 			sprintf(errorMessage, "Unable to create Direct3D device\nerror %x", hresult);
 			GOL_FATALERROR_MESSAGE(errorMessage);
@@ -554,6 +580,7 @@ LegoS32 GolD3DRenderDevice::CreateRenderer(LegoU32 p_flags)
 	}
 
 	GolRenderDevice::RestoreResources();
+
 	return 0;
 }
 
@@ -744,7 +771,8 @@ void GolD3DRenderDevice::ApplyCamera()
 	lens->UpdateMatrices();
 	lens->BuildD3DViewport(&m_viewportParams);
 
-	if (!(m_flags & c_flagSoftwareRenderer) && m_d3dViewport->SetViewport2(&m_viewportParams) != D3D_OK) {
+	if (!IsNativeActive() && !(m_flags & c_flagSoftwareRenderer) &&
+		m_d3dViewport->SetViewport2(&m_viewportParams) != D3D_OK) {
 		GOL_FATALERROR_MESSAGE("Unable to set viewport");
 	}
 
@@ -1309,7 +1337,7 @@ void GolD3DRenderDevice::BeginFrame(undefined4 p_flags)
 		m_renderTargetInfo->FinishPendingFlip();
 	}
 
-	if (p_flags & 0x05) {
+	if (!IsNativeActive() && (p_flags & 0x05)) {
 		if (m_unk0xc83c4 == 0) {
 			D3DRECT rect;
 			rect.x1 = 0;
@@ -1352,7 +1380,10 @@ void GolD3DRenderDevice::BeginFrame(undefined4 p_flags)
 
 void GolD3DRenderDevice::ApplyBloom(LegoFloat p_strength)
 {
-	if (IsNativeActive()) { ApplyNativeBloom(p_strength); return; }
+	if (IsNativeActive()) {
+		ApplyNativeBloom(p_strength);
+		return;
+	}
 	if (p_strength <= 0.0f || m_bloomFailed || (m_flags & c_flagSoftwareRenderer) ||
 		m_renderTargetInfo != m_primaryRenderTarget) {
 		return;

@@ -1,10 +1,10 @@
-# LEGO Racers Remastered � private development preview
+# LEGO Racers Epoch Remastered
 
 Personal remaster mod based on [isledecomp/racers](https://github.com/isledecomp/racers).
 This repository contains modified engine source, the Direct3D 11 renderer and
 asset-processing tools. The release ZIP contains mod binaries and a delta patch.
 It does not contain the full game archive, music, original game executable,
-personal saves, third-party fonts, or dgVoodoo binaries. The Epoch Remastered replacement title logo is included.
+personal saves or dgVoodoo binaries. Brady Bunch Remastered is included with its original freeware documentation. The Epoch Remastered replacement title logo is included.
 
 ## Install
 
@@ -39,3 +39,9 @@ Private development does not establish permission for public redistribution.
 
 Upstream source revision: `7675cebe85578e529d384bc3a5a47ac6163cb553`
 
+
+## v0.1.6 display and font fixes
+
+The native renderer defaults to borderless desktop presentation without changing the Windows display mode. Menu pointer coordinates follow the centered viewport. A separate small Direct3D 6 compatibility target avoids legacy device-size limits while the loading surface and Direct3D 11 output retain full resolution.
+
+The replacement logo uses the original loader's bottom-up TGA orientation. Brady Bunch Remastered and its documentation are included; existing settings without a font entry use that font automatically. Explicit custom font choices remain unchanged.

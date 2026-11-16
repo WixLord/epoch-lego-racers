@@ -4,6 +4,7 @@
 #include "input/joystickdevice.h"
 #include "input/keyboarddevice.h"
 #include "input/mousedevice.h"
+#include "util/settingsfile.h"
 
 DECOMP_SIZE_ASSERT(MenuInputHandler, 0x248)
 
@@ -42,7 +43,14 @@ void MenuInputHandler::Initialize(InputManager* p_inputManager)
 	if (mouse != NULL) {
 		mouse->SetCallback(&m_inputEvents);
 		mouse->SetRepeatDelays(250, 500);
-		mouse->SetExclusiveMode();
+		SettingsFile settings("Reborn.ini");
+		static const char* const renderers[] = {"legacy", "d3d11"};
+		if (settings.ReadChoice("Video", "Renderer", renderers, 2, 0) == 1) {
+			mouse->SetNonExclusiveMode();
+		}
+		else {
+			mouse->SetExclusiveMode();
+		}
 		mouse->Acquire();
 	}
 

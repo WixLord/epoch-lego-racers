@@ -65,6 +65,13 @@ void SplitCommand()
 int WINAPI WinMain(HINSTANCE p_hInstance, HINSTANCE p_hPrevInstance, LPSTR p_lpCmdLine, int p_nShowCmd)
 {
 	int result;
+	// Use physical desktop pixels rather than Windows' DPI-virtualized dimensions.
+	typedef BOOL(WINAPI * SetDpiAware)();
+	SetDpiAware setDpiAware =
+		reinterpret_cast<SetDpiAware>(GetProcAddress(GetModuleHandle("user32.dll"), "SetProcessDPIAware"));
+	if (setDpiAware) {
+		setDpiAware();
+	}
 
 	// Remaster: also detect the unmodified original, which does not use our mutex.
 	HANDLE instance = CreateMutex(NULL, FALSE, "Local\\LegoRacersReborn");

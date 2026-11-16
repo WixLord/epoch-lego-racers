@@ -1,5 +1,7 @@
 #include "render/goldrawdpstate.h"
 
+#include "../../../LEGORacers/include/util/settingsfile.h"
+#include "diagnosticlog.h"
 #include "golerror.h"
 
 #include <stdio.h>
@@ -108,6 +110,19 @@ LegoS32 GolDrawDPState::CreateDevice()
 	char buffer[100];
 	DDSURFACEDESC displayMode;
 	m_ddraw = NULL;
+	SettingsFile settings("Reborn.ini");
+	const char* renderers[] = {"legacy", "d3d11"};
+	bool native = settings.ReadChoice("Video", "Renderer", renderers, 2, 0) == 1;
+	if (native) {
+		// DirectDraw supplies legacy resources, not exclusive presentation.
+		// Keep the desktop mode intact while D3D11 presents the borderless window.
+		m_flags &= ~(c_flagHardwareDevice | c_flagBit10);
+		DEVMODE desktop = {};
+		desktop.dmSize = sizeof(desktop);
+		if (EnumDisplaySettings(NULL, ENUM_CURRENT_SETTINGS, &desktop)) {
+			m_bpp = desktop.dmBitsPerPel;
+		}
+	}
 
 	if (m_flags & (c_flagForceSoftware | c_flagBit17)) {
 		m_flags |= c_flagBit11 | c_flagBit13;
@@ -188,6 +203,13 @@ LegoS32 GolDrawDPState::CreateDevice()
 		}
 	}
 
+	if (native) {
+		m_flags &= ~(c_flagHardwareDevice | c_flagBit10);
+		AppendDiagnosticLog(
+			"Reborn-render.log",
+			"Native presentation: non-exclusive DirectDraw; desktop display mode preserved."
+		);
+	}
 	if (m_flags & c_flagHardwareDevice) {
 		m_flags |= c_flagBit10;
 		hResult = m_ddraw4->SetCooperativeLevel(m_hWnd, DDSCL_FPUSETUP | DDSCL_EXCLUSIVE | DDSCL_FULLSCREEN);

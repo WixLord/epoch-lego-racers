@@ -421,7 +421,9 @@ void Win32GolApp::UpdateMousePosition()
 {
 	m_eventHandler->OnCursorInside();
 
-	if (m_windowMode == c_windowModeWindowed) {
+	// Native presentation is borderless, but still uses the Windows cursor.
+	LegoBool32 native = m_renderer && m_renderer->IsNativeActive();
+	if (m_windowMode == c_windowModeWindowed || (native && m_windowMode == c_windowModeFullscreen)) {
 		RECT rect;
 		POINT topLeft;
 		POINT bottomRight;
@@ -435,6 +437,19 @@ void Win32GolApp::UpdateMousePosition()
 		ClientToScreen(m_hWnd, &topLeft);
 		ClientToScreen(m_hWnd, &bottomRight);
 		GetCursorPos(&cursorPos);
+
+		// Match the centered, aspect-preserving D3D11 viewport (including menu pillarboxing).
+		if (native && m_golDrawState->m_width && m_golDrawState->m_height) {
+			LegoFloat xScale = (LegoFloat) (bottomRight.x - topLeft.x) / m_golDrawState->m_width;
+			LegoFloat yScale = (LegoFloat) (bottomRight.y - topLeft.y) / m_golDrawState->m_height;
+			LegoFloat scale = xScale < yScale ? xScale : yScale;
+			LONG width = (LONG) (m_golDrawState->m_width * scale);
+			LONG height = (LONG) (m_golDrawState->m_height * scale);
+			topLeft.x += (bottomRight.x - topLeft.x - width) / 2;
+			topLeft.y += (bottomRight.y - topLeft.y - height) / 2;
+			bottomRight.x = topLeft.x + width;
+			bottomRight.y = topLeft.y + height;
+		}
 
 		if (cursorPos.x < topLeft.x || cursorPos.x >= bottomRight.x || cursorPos.y < topLeft.y ||
 			cursorPos.y >= bottomRight.y) {

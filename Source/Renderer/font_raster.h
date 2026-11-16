@@ -18,7 +18,7 @@
             slash[1]=0;
             std::wstring directory(path),ini=directory+L"Reborn.ini";
             wchar_t selected[MAX_PATH];
-            GetPrivateProfileStringW(L"UI",L"FontFile",L"Fonts\\ChunkyZorvy-Regular.otf",selected,MAX_PATH,ini.c_str());
+            GetPrivateProfileStringW(L"UI",L"FontFile",L"Fonts\\BradBunR.ttf",selected,MAX_PATH,ini.c_str());
             if(!selected[0] || !_wcsicmp(selected,L"original"))return;
             std::wstring filename=selected;
             if(filename.find(L':')==std::wstring::npos && filename[0]!=L'\\')filename=directory+filename;

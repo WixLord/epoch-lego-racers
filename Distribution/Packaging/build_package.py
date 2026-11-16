@@ -104,8 +104,12 @@ def build(workspace, output, version):
     logo = (workspace / 'Assets/Branding/RemasterLogo.tga').read_bytes()
     files['payload/RemasterLogo.tga'] = logo
     manifest['files'].append(dict(source='payload/RemasterLogo.tga', destination='RemasterLogo.tga', sha256=digest(logo)))
-    # Fonts remain optional; ship the explicitly requested replacement title logo.
-    config = b'[Video]\nRenderer=d3d11\nRaceResolution=desktop\nAntialiasing=4x\nFiltering=16\nForceVerticalSync=true\nShadows=scene\nBloom=medium\nAmbientOcclusion=subtle\n'
+    for name in ['BradBunR.ttf', 'bradybunch.txt']:
+        data = (workspace / 'Assets/Fonts/BradyBunchRemastered' / name).read_bytes()
+        source = 'payload/Fonts/' + name
+        files[source] = data
+        manifest['files'].append(dict(source=source, destination='Fonts/' + name, sha256=digest(data)))
+    config = b'[Video]\nRenderer=d3d11\nRaceResolution=desktop\nAntialiasing=4x\nFiltering=16\nForceVerticalSync=true\nShadows=scene\nBloom=medium\nAmbientOcclusion=subtle\n[UI]\nFontFile=Fonts\\BradBunR.ttf\n'
     files['payload/Reborn.ini'] = config
     manifest['files'].append(dict(source='payload/Reborn.ini', destination='Reborn.ini', sha256=digest(config), preserve=True))
     files['patches/LEGO.JAM.rmp'] = patch
@@ -131,7 +135,7 @@ This package has not yet completed its public redistribution review.
                   baseArchiveSha256=digest(original), outputArchiveSha256=digest(modified),
                   bytesCopiedFromUserArchive=copied, deltaLiteralBytes=inserted,
                   includedFiles=sorted(files), excluded=['Original game executables', 'LEGO.JAM', '*.tun', 'Save/',
-                      'Fonts/', 'D3DImm.dll', 'DDraw.dll', 'logs', 'credentials'],
+                      'D3DImm.dll', 'DDraw.dll', 'logs', 'credentials'],
                   publicReleaseReady=False)
     (output / 'package-audit.json').write_text(json.dumps(report, indent=2))
     print(json.dumps({k: v for k, v in report.items() if k != 'includedFiles'}, indent=2))
