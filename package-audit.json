@@ -1,7 +1,7 @@
 {
-  "version": "v0.1.1",
-  "sha256": "ecdd8ab5a56d11ddf7b78b98353c84bfe26d6c3d4be58832a53c45e7a2dc9b60",
-  "size": 2831819,
+  "version": "v0.1.2",
+  "sha256": "2ab87b00819196c5aa2dc46e05bfebbddb1fbdd006303da18fd5e39ba5697488",
+  "size": 2901563,
   "baseArchiveSha256": "5eadf314868d67732866b474796dbfd1666c595cce1e131d2b850014cd7025c1",
   "outputArchiveSha256": "2513ec714f34d3880dec62a930bf78a5226f330fde57e5d77408883db3110897",
   "bytesCopiedFromUserArchive": 19236008,
