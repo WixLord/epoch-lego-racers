@@ -71,5 +71,16 @@ foreach($file in @('BODYPART.MDB','BODYPART.TDB')) {
     }
     [BinaryTokens]::Write("$parts/$file",$tokens)
 }
+# Saved-car texture definitions retain bare filenames. Race and cinematic
+# reloads resolve these from their own resource directories, not PARTDB.
+# Mirror the original default face's resource coverage for every new part.
+$resourceDirectories = Get-ChildItem $OutputDirectory -Recurse -Filter 'LH_*.BMP' |
+    Select-Object -ExpandProperty DirectoryName -Unique
+foreach($directory in $resourceDirectories) {
+    if([IO.Path]::GetFullPath($directory) -eq [IO.Path]::GetFullPath($parts)){continue}
+    foreach($name in @('SP_DFLT','SP_ANGRY','SP_BLINK','SP_HAPPY','SP_SAD','SP_SUPRZ','SP_CHST','SP_LEGS')) {
+        Copy-Item "$parts/$name.BMP" "$directory/$name.BMP" -Force
+    }
+}
 [JamArchive]::Write($OutputDirectory,"$art/LEGO.JAM")
 Write-Output "Built Spider-Man mask, torso and matching blue legs. Catalog indices: face 30, torso 29, legs 20."
