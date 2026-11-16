@@ -1,4 +1,5 @@
 """Six real native bridges and headless game IPC fixtures against the deployed service."""
+import json
 import pathlib
 import subprocess
 import time
@@ -36,16 +37,23 @@ try:
     wait_for(lambda: '"ready":true' in logs[0].read_text(errors="replace"))
     assert '"canStart":true' not in logs[0].read_text(errors="replace")
     print("PASS: lone host can ready up; starting alone remains disabled")
+    processes[0].stdin.write(b'chat "Hello from the lone host"\n'); processes[0].stdin.flush()
+    wait_for(lambda: '"text":"Hello from the lone host"' in logs[0].read_text(errors="replace"))
+    print("PASS: lone host can send and receive lobby chat before anyone joins")
     for index in range(1, 6):
         launch(index, code)
     wait_for(lambda: all(path.read_text(errors="replace").count("CONNECTED relay") == 5 for path in logs))
+    wait_for(lambda: all('"text":"Hello from the lone host"' in path.read_text(errors="replace") for path in logs))
+    states = [json.loads([line[6:] for line in path.read_text(errors="replace").splitlines() if line.startswith("STATE ")][-1]) for path in logs]
+    assert all(len(state["members"]) == 6 and state["host"] in [m["id"] for m in state["members"]] for state in states)
+    print("PASS: six-player roster with host, self and readiness delivered to each lobby")
     # Chat must be delivered as text, never interpreted as r/s/q commands.
     processes[1].stdin.write(b'chat "ready start quit - hello lobby"\n'); processes[1].stdin.flush()
     wait_for(lambda: all('"text":"ready start quit - hello lobby"' in path.read_text(errors="replace") for path in logs))
     processes[1].stdin.write(b"r\n"); processes[1].stdin.flush()
     wait_for(lambda: '"ready":true' in logs[1].read_text(errors="replace"))
     processes[1].stdin.write(b"u\n"); processes[1].stdin.flush()
-    wait_for(lambda: [line for line in logs[1].read_text(errors="replace").splitlines() if line.startswith("STATE ")][-1].endswith('"ready":false}'))
+    wait_for(lambda: not json.loads([line[6:] for line in logs[1].read_text(errors="replace").splitlines() if line.startswith("STATE ")][-1])["ready"])
     print("PASS: authenticated chat delivered to six peers, ready/unready acknowledged")
     for process in processes:
         process.stdin.write(b"r\n"); process.stdin.flush()

@@ -88,7 +88,8 @@ bool ValidBuild(const unsigned char* p_data)
 	if (!memchr(p_data + 0x21, 0, 8)) {
 		return false;
 	}
-	unsigned count = p_data[0x29] | (p_data[0x2a] << 8);
+	// Saved car records use big-endian 16-bit fields, unlike the packet header.
+	unsigned count = (p_data[0x29] << 8) | p_data[0x2a];
 	if (count == 0 || count > 64) {
 		return false;
 	}

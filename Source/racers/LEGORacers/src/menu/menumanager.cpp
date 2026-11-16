@@ -889,6 +889,7 @@ void MenuManager::PrepareRaceContext()
 		unsigned char remoteBuilds[5][0x22d];
 		SetWindowText(context->m_golApp->GetHwnd(), "Epoch online: waiting for friend (Escape cancels)");
 		if (!OnlineRace::ExchangeBuilds(selectedRecords.GetSelectedRecord(0)->m_data, remoteBuilds)) {
+			AppendDiagnosticLog("Reborn-online.log", OnlineRace::Error());
 			MessageBox(context->m_golApp->GetHwnd(), OnlineRace::Error(), "Online prototype", MB_OK);
 			context->m_running = FALSE;
 			return;
@@ -915,15 +916,16 @@ void MenuManager::PrepareRaceContext()
 			GolName chassis;
 			remoteRecord.GetChassisName(chassis);
 			valid = valid && chassisCatalog.GetName(chassis) != NULL;
-			LegoU32 count = received[0x29] | (received[0x2a] << 8);
+			LegoU32 count = (received[0x29] << 8) | received[0x2a];
 			for (LegoU32 i = 0; valid && i < count; ++i) {
 				const LegoU8* piece = received + 0x2b + 8 * i;
 				LegoPieceLibrary::PieceRecord* model =
-					m_gameContext.m_pieceLibrary.FindPieceRecord(piece[0] | (piece[1] << 8), 1);
+					m_gameContext.m_pieceLibrary.FindPieceRecord((piece[0] << 8) | piece[1], 1);
 				LegoS32 color = i == 0 ? piece[5] & 0x7f : piece[5];
 				valid = model != NULL && color < m_gameContext.m_colorTable.GetColorCount();
 			}
 			if (!valid) {
+				AppendDiagnosticLog("Reborn-online.log", "The other player's car is not compatible with this build.");
 				MessageBox(
 					context->m_golApp->GetHwnd(),
 					"The other player's car is not compatible with this build.",

@@ -334,6 +334,7 @@ int main(int argc, char** argv)
                 if (member.at("id") == lobby.id) ownReady = member.value("ready", false);
             bool canReady = participating && currentStatus == "lobby" && (ids.size() == 1 || connected);
             Json state = {{"ready", ownReady}, {"canReady", canReady},
+                {"members", room.at("members")}, {"host", room.at("host")}, {"self", lobby.id}, {"phase", room.at("phase")},
                 {"canStart", hosting && connected && currentStatus == "lobby" &&
                     std::all_of(room.at("members").begin(), room.at("members").end(),
                         [](const Json& m) { return m.value("waiting", false) || m.value("ready", false); })}};
